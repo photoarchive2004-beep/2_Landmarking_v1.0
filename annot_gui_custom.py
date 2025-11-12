@@ -212,7 +212,7 @@ class AnnotGUI(tk.Tk):
     # UI
     def apply_banner(self):
         if self.scale_mode:
-            self.banner.config(text="SCALE MODE — place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF")
+            self.banner.config(text="SCALE MODE вЂ” place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF")
             try: self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
             except: pass
         else:
@@ -353,51 +353,42 @@ class AnnotGUI(tk.Tk):
             self.qc_mode=False; self.apply_banner(); self.redraw("hq")
 
     def run_qc(self):
-        N=self.N; imgs=self.images
-        problems=[]
-        # build shapes with full count
-        full_shapes=[]; full_idx=[]
-        for i,fp in enumerate(imgs):
-            pts=read_any_csv_points(Path(fp).with_suffix(".csv"))
-            if len(pts)==0: continue
-            if len(pts)!=N: problems.append((i, f"count!=N (got {len(pts)})"))
-            else: full_shapes.append(pts); full_idx.append(i)
-        if len(full_shapes)>=2:
-            aligned,mean=gpa_align(full_shapes, iters=10)
-            per_k_dists = [[] for _ in range(N)]
-            for sh in aligned:
-                for k,(x,y) in enumerate(sh):
-                    mx,my=mean[k]; per_k_dists[k].append(((x-mx)**2+(y-my)**2)**0.5)
-            med=[(statistics.median(d) if d else 0.0) for d in per_k_dists]
-            thr=[max(0.05, 4*m) for m in med]
-            for idx_img, sh in zip(full_idx, aligned):
-                reasons=[]
-                for k,(x,y) in enumerate(sh):
-                    mx,my=mean[k]; d_self=((x-mx)**2+(y-my)**2)**0.5
-                    if d_self>thr[k]: reasons.append(f"LM{k+1} outlier")
-                    # swap?
-                    best_other=None; best_d=1e9
-                    for j,(qx,qy) in enumerate(mean):
-                        if j==k: continue
-                        d=((x-qx)**2+(y-qy)**2)**0.5
-                        if d<best_d: best_d, best_other=d, j
-                    if best_d + 1e-6 < d_self: reasons.append(f"LM{k+1} near LM{best_other+1} (swap?)")
-                if reasons: problems.append((idx_img, "; ".join(reasons)))
-        problems.sort(key=lambda x:x[0])
-        # merge reasons per image
-        merged=[]; last_i=-1; acc=[]
-        for i,r in problems:
-            if i!=last_i:
-                if acc: merged.append((last_i, "; ".join(acc)))
-                last_i=i; acc=[r]
-            else: acc.append(r)
-        if acc: merged.append((last_i, "; ".join(acc)))
-        self.qc_list=merged
-        # banner text file
-        Path(self.root_dir,"tools","2_Landmarking_v1.0","logs","qc_last.txt").write_text(
-            "\n".join([f"{Path(self.images[i]).name}: {r}" for i,r in merged]), encoding="utf-8"
-        )
-
+    N=self.N
+    imgs=self.images
+    # берём ТОЛЬКО полностью размеченные формы (ровно N точек)
+    shapes=[]; idxs=[]
+    for i,fp in enumerate(imgs):
+        pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
+        if len(pts)==N:
+            shapes.append(pts); idxs.append(i)
+    self.qc_list=[]
+    if len(shapes) < 2:
+        # не хватает полных форм, чтобы посчитать центроиды
+        return
+    aligned, mean = gpa_align(shapes, iters=10)  # мини-GPA
+    problems=[]
+    eps=1e-9
+    for idx_img, sh in zip(idxs, aligned):
+        reasons=[]
+        for k,(x,y) in enumerate(sh):
+            mx,my = mean[k]
+            d_self = ((x-mx)**2 + (y-my)**2)**0.5
+            # минимальная дистанция до чужих центроидов
+            best_d=1e18; best_j=None
+            for j,(qx,qy) in enumerate(mean):
+                if j==k: continue
+                d=((x-qx)**2+(y-qy)**2)**0.5
+                if d<best_d:
+                    best_d, best_j = d, j
+            if best_d + eps < d_self:  # БЛИЖЕ к чужому, чем к своему
+                reasons.append(f"LM{k+1} closer to LM{best_j+1}")
+        if reasons:
+            problems.append((idx_img, "; ".join(reasons)))
+    problems.sort(key=lambda x: x[0])
+    self.qc_list = problems
+    # лог списка проблем
+    log_path = Path(self.root_dir)/"tools/2_Landmarking_v1.0/logs"/"qc_last.txt"
+    log_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}" for i,r in self.qc_list]), encoding="utf-8")
     # navigation (with QC)
     def prev_image(self):
         if not self.auto_save_on_switch(): return
