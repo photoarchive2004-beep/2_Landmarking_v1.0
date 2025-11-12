@@ -1,4 +1,0 @@
-  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 356
-    N=self.N
-    ^
-IndentationError: expected an indented block after function definition on line 355

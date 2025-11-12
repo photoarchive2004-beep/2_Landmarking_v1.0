@@ -4,7 +4,7 @@ from PIL import Image, ImageTk
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
-# ---------- helpers ----------
+# -------------------- IO helpers --------------------
 def read_npoints(root):
     lm = Path(root)/"tools/2_Landmarking_v1.0/LM_number.txt"
     try:
@@ -58,7 +58,7 @@ def move_to_bad(img_path):
             if f.exists(): shutil.move(str(f), str(bad/f.name))
         except: pass
 
-# ---------- GPA/QC ----------
+# -------------------- GPA (mini) --------------------
 def center_scale(pts):
     cx=sum(x for x,_ in pts)/len(pts); cy=sum(y for _,y in pts)/len(pts)
     centered=[(x-cx,y-cy) for x,y in pts]
@@ -86,7 +86,7 @@ def gpa_align(shapes, iters=10):
         m=new_m
     return aligned, m
 
-# ---------- GUI ----------
+# -------------------- GUI --------------------
 class AnnotGUI(tk.Tk):
     def __init__(self, root, png_dir, n_points, start_from=None, scale_wizard=False):
         super().__init__()
@@ -98,7 +98,6 @@ class AnnotGUI(tk.Tk):
             messagebox.showerror("Error","LM_number.txt invalid or missing (N>1 required).")
             self.destroy(); sys.exit(2)
 
-        # logs
         logs_dir = Path(root)/"tools/2_Landmarking_v1.0/logs"
         logs_dir.mkdir(exist_ok=True, parents=True)
         self.log_last = logs_dir/"annot_gui_last.log"
@@ -108,7 +107,6 @@ class AnnotGUI(tk.Tk):
         if not self.images:
             messagebox.showinfo("Empty","No PNG images found."); self.destroy(); sys.exit(0)
 
-        # choose start index
         self.idx=0
         if start_from:
             sf=start_from.lower().replace(".png","")
@@ -129,9 +127,7 @@ class AnnotGUI(tk.Tk):
         self.radius=6; self.zoom=1.0; self.offset=[0.0,0.0]
         self.dragging_idx=None; self.dragging_canvas=False
         self.photo=None; self.img=None
-
-        # slots for stable numbering
-        self.slots=[None]*self.N
+        self.slots=[None]*self.N                 # стабильная нумерация
 
         # modes
         self.scale_mode=bool(scale_wizard); self.scale_pts=[]
@@ -153,7 +149,7 @@ class AnnotGUI(tk.Tk):
         self._loaded=False
         self.load_image(self.images[self.idx])
 
-        # auto-scale fallback in GUI (in case .bat missed it)
+        # GUI-fallback автозапуска масштаба (если .bat пропустил)
         first_png = Path(self.images[0]).name
         scale_must = Path(self.images[0]).with_name(first_png + ".scale.csv")
         if not scale_must.exists():
@@ -166,10 +162,6 @@ class AnnotGUI(tk.Tk):
         for i,p in enumerate(self.slots):
             if p is None: return i
         return None
-    def _iter_points(self):
-        for i,p in enumerate(self.slots, start=1):
-            if p is not None: yield i,p
-
     def _pointer_on_canvas(self):
         return (self.canvas.winfo_pointerx()-self.canvas.winfo_rootx(),
                 self.canvas.winfo_pointery()-self.canvas.winfo_rooty())
@@ -212,7 +204,7 @@ class AnnotGUI(tk.Tk):
     # UI
     def apply_banner(self):
         if self.scale_mode:
-            self.banner.config(text="SCALE MODE вЂ” place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF")
+            self.banner.config(text="SCALE MODE — place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF")
             try: self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
             except: pass
         else:
@@ -223,7 +215,7 @@ class AnnotGUI(tk.Tk):
 
     def update_status(self):
         i=self.idx+1; T=len(self.images); loc=Path(self.png_dir).parent.name; name=Path(self.img_path).name
-        extra=(" | SCALE MODE (10 mm)" if self.scale_mode else " | +/- size %d px | X/Ctrl+B: move to bad"%self.radius)
+        extra=(" | SCALE MODE (10 mm)" if self.scale_mode else f" | +/- size {self.radius}px | X/Ctrl+B: move to bad")
         self.status.config(text=f"Image {i} of {T} | {name} | {loc}{extra}")
         self.title(f"GM Points Annotator - {name} [{i}/{T}]")
 
@@ -331,7 +323,7 @@ class AnnotGUI(tk.Tk):
         elif k=="b" and (e.state & 0x0004) and (not self.scale_mode):
             move_to_bad(self.img_path); self.after(10, self.next_image)
         elif k=="h":
-            messagebox.showinfo("Help","F9: QC toggle\nLeft/Right: prev/next\nLMB: add/drag (fills first free index)\nRMB drag: pan\nCtrl+wheel: zoom\n+/-: size\nDelete / Ctrl+D: delete nearest\nX/Ctrl+B: move to bad\nCtrl+S: save\nEnter/Btn (Scale): save scale\nF: search")
+            messagebox.showinfo("Help","F9: QC swap-only\nLeft/Right: prev/next\nLMB: add/drag (fills first free index)\nRMB drag: pan\nCtrl+wheel: zoom\n+/-: size\nDelete/Ctrl+D: delete\nX/Ctrl+B: move to bad\nCtrl+S: save\nEnter/Btn (Scale): save scale\nF: search")
 
     def on_key_up(self, e): pass
     def ctrl_save(self, *_): self.save_current()
@@ -340,56 +332,62 @@ class AnnotGUI(tk.Tk):
         j=self._pick_slots(cx,cy)
         if j is not None: self.slots[j]=None; self.redraw()
 
-    # ---------- QC ----------
+    # -------------------- QC (swap-only) --------------------
+    def run_qc(self):
+        """Только перепутанность: после GPA LM_k ближе к центроиду другого LM_j, чем к своему."""
+        N=self.N; imgs=self.images
+        shapes=[]; idxs=[]
+        for i,fp in enumerate(imgs):
+            pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
+            if len(pts)==N:
+                shapes.append(pts); idxs.append(i)
+        self.qc_list=[]
+        if len(shapes) < 2:
+            return
+        aligned, mean = gpa_align(shapes, iters=10)
+        problems=[]
+        eps=1e-9
+        for idx_img, sh in zip(idxs, aligned):
+            reasons=[]
+            for k,(x,y) in enumerate(sh):
+                mx,my = mean[k]
+                d_self = ((x-mx)**2 + (y-my)**2)**0.5
+                best_d=1e18; best_j=None
+                for j,(qx,qy) in enumerate(mean):
+                    if j==k: continue
+                    d=((x-qx)**2+(y-qy)**2)**0.5
+                    if d<best_d: best_d, best_j = d, j
+                if best_d + eps < d_self:
+                    reasons.append(f"LM{k+1} closer to LM{best_j+1}")
+            if reasons:
+                problems.append((idx_img, "; ".join(reasons)))
+        problems.sort(key=lambda x:x[0])
+        self.qc_list = problems
+        # log
+        log_path = Path(self.root_dir)/"tools/2_Landmarking_v1.0/logs"/"qc_last.txt"
+        log_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}" for i,r in self.qc_list]), encoding="utf-8")
+
     def toggle_qc(self, *_):
         if self.scale_mode:
             messagebox.showinfo("Scale first","Finish Scale Wizard first."); return
         if not self.qc_mode:
             self.run_qc()
             if not self.qc_list:
-                messagebox.showinfo("QC","No issues detected."); return
-            self.qc_mode=True; self.qc_pos=0; self.idx=self.qc_list[0][0]; self.load_image(self.images[self.idx])
+                messagebox.showinfo("QC","No swaps detected."); return
+            self.qc_mode=True
+            # перейти к первой проблеме >= текущего
+            idxs=[i for i,_ in self.qc_list]
+            pos=0
+            for p,i in enumerate(idxs):
+                if i>=self.idx: pos=p; break
+            self.qc_pos=pos; self.idx=idxs[self.qc_pos]
+            self.load_image(self.images[self.idx])
         else:
-            self.qc_mode=False; self.apply_banner(); self.redraw("hq")
+            self.qc_mode=False
+            self.banner.config(text="")
+            self.redraw("hq")
 
-    def run_qc(self):
-    N=self.N
-    imgs=self.images
-    # берём ТОЛЬКО полностью размеченные формы (ровно N точек)
-    shapes=[]; idxs=[]
-    for i,fp in enumerate(imgs):
-        pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
-        if len(pts)==N:
-            shapes.append(pts); idxs.append(i)
-    self.qc_list=[]
-    if len(shapes) < 2:
-        # не хватает полных форм, чтобы посчитать центроиды
-        return
-    aligned, mean = gpa_align(shapes, iters=10)  # мини-GPA
-    problems=[]
-    eps=1e-9
-    for idx_img, sh in zip(idxs, aligned):
-        reasons=[]
-        for k,(x,y) in enumerate(sh):
-            mx,my = mean[k]
-            d_self = ((x-mx)**2 + (y-my)**2)**0.5
-            # минимальная дистанция до чужих центроидов
-            best_d=1e18; best_j=None
-            for j,(qx,qy) in enumerate(mean):
-                if j==k: continue
-                d=((x-qx)**2+(y-qy)**2)**0.5
-                if d<best_d:
-                    best_d, best_j = d, j
-            if best_d + eps < d_self:  # БЛИЖЕ к чужому, чем к своему
-                reasons.append(f"LM{k+1} closer to LM{best_j+1}")
-        if reasons:
-            problems.append((idx_img, "; ".join(reasons)))
-    problems.sort(key=lambda x: x[0])
-    self.qc_list = problems
-    # лог списка проблем
-    log_path = Path(self.root_dir)/"tools/2_Landmarking_v1.0/logs"/"qc_last.txt"
-    log_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}" for i,r in self.qc_list]), encoding="utf-8")
-    # navigation (with QC)
+    # navigation
     def prev_image(self):
         if not self.auto_save_on_switch(): return
         if self.qc_mode and self.qc_list and self.qc_pos>0:
