@@ -1,4 +1,4 @@
-import sys, argparse, shutil, time
+﻿import sys, argparse, shutil, time
 from pathlib import Path
 from PIL import Image, ImageTk
 import tkinter as tk
@@ -561,9 +561,8 @@ class AnnotGUI(tk.Tk):
         except Exception: pass
         if self.qc_mode:
             self._qc_refresh_and_locate()
-
-    def run_qc(self):
-        """После мини-GPA LM_k ближе к центроиду другого LM_j, чем к своему на >= tol."""
+def run_qc(self):
+    # body follows (docstring removed)
         N = self.N
         imgs = self.images
         shapes, idxs = [], []
