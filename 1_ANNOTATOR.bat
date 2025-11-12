@@ -61,6 +61,28 @@ if not exist "!PNG_DIR!" (
   exit /b 2
 )
 
+rem ---- Scale Wizard (если у первого PNG нет .scale.csv) ----
+set "FIRST_PNG="
+for %%F in ("!PNG_DIR!\*.png") do ( set "FIRST_PNG=%%~nxF" & goto _fp_done )
+:_fp_done
+if defined FIRST_PNG (
+  if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
+    echo.
+    set /p RUNS=No SCALE file for "!FIRST_PNG!". Run Scale Wizard now? [Y/n]:
+    if /I "!RUNS!"==""  set "RUNS=Y"
+    if /I "!RUNS!"=="Y" (
+      echo [INFO] Starting Scale Wizard...
+      set "GUI_LOG=%LOG_DIR%\gui_scale_last.log"
+      %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" --start-from "!FIRST_PNG!" --scale-wizard 1> "!GUI_LOG!" 2>&1
+      if errorlevel 1 (
+        echo [ERR] Scale Wizard failed. See "!GUI_LOG!".
+        type "!GUI_LOG!" | more
+        pause
+      )
+    )
+  )
+)
+
 rem ---- Engine select ----
 echo.
 echo Annotator engine:
@@ -69,10 +91,17 @@ echo   2^) Standard Python
 set /p ENG=Select [1]:
 if "!ENG!"=="2" ( set "ENGINE=std" ) else ( set "ENGINE=custom" )
 
+set "GUI_LOG=%LOG_DIR%\gui_run_last.log"
 if /I "!ENGINE!"=="custom" (
-  %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" --csv-format tpsutils
+  %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" 1> "!GUI_LOG!" 2>&1
 ) else (
-  echo [WARN] Standard engine is not implemented yet.
+  echo [WARN] Standard engine is not implemented yet. > "!GUI_LOG!"
+)
+
+set "RC=%ERRORLEVEL%"
+if not "!RC!"=="0" (
+  echo [ERR] GUI exited with code !RC!. See "!GUI_LOG!".
+  type "!GUI_LOG!" | more
   pause
 )
 
