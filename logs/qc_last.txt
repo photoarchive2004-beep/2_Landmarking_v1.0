@@ -1,1 +1,2 @@
 img_004418.png: LM2 near LM3 (swap?)
+img_010424.png: LM3 near LM2 (swap?); LM15 near LM16 (swap?)
