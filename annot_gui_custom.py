@@ -149,7 +149,7 @@ class AnnotGUI(tk.Tk):
         self.btnQC.pack(side=tk.RIGHT, padx=8, pady=4)
 
         self.btnScale = tk.Button(top, text="Save scale (Enter)", command=lambda: self.finish_scale(True))
-        # btnScale показываем только в scale-mode (apply_banner управляет)
+        # btnScale РїРѕРєР°Р·С‹РІР°РµРј С‚РѕР»СЊРєРѕ РІ scale-mode (apply_banner СѓРїСЂР°РІР»СЏРµС‚)
 
         # --- canvas + status ---
         self.canvas = tk.Canvas(self, bg="gray10", highlightthickness=0)
@@ -166,7 +166,7 @@ class AnnotGUI(tk.Tk):
         self.dragging_canvas = False
         self.photo = None
         self.img = None
-        self.slots = [None] * self.N  # стабильная нумерация
+        self.slots = [None] * self.N  # СЃС‚Р°Р±РёР»СЊРЅР°СЏ РЅСѓРјРµСЂР°С†РёСЏ
 
         # modes
         self.scale_mode = bool(scale_wizard)
@@ -280,7 +280,7 @@ class AnnotGUI(tk.Tk):
     def apply_banner(self):
         if self.scale_mode:
             self.banner.config(
-                text="SCALE MODE — place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF"
+                text="SCALE MODE вЂ” place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF"
             )
             try:
                 self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
@@ -486,43 +486,41 @@ class AnnotGUI(tk.Tk):
 
     # ---------- QC (swap-only) ----------
     def run_qc(self):
-        N = self.N
-        imgs = self.images
-        shapes, idxs = [], []
-        for i, fp in enumerate(imgs):
-            pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
-            if len(pts) == N:
-                shapes.append(pts)
-                idxs.append(i)
-        self.qc_list = []
-        if len(shapes) < 2:
-            return
-        aligned, mean = gpa_align(shapes, iters=10)
-        problems = []
-        eps = 1e-9
-        for idx_img, sh in zip(idxs, aligned):
-            reasons = []
-            for k, (x, y) in enumerate(sh):
-                mx, my = mean[k]
-                d_self = ((x - mx) ** 2 + (y - my) ** 2) ** 0.5
-                best_d = 1e18
-                best_j = None
-                for j, (qx, qy) in enumerate(mean):
-                    if j == k:
-                        continue
-                    d = ((x - qx) ** 2 + (y - qy) ** 2) ** 0.5
-                    if d < best_d:
-                        best_d, best_j = d, j
-                if best_d + eps < d_self:
-                    reasons.append(f"LM{k+1} closer to LM{best_j+1}")
-            if reasons:
-                problems.append((idx_img, "; ".join(reasons)))
-        problems.sort(key=lambda x: x[0])
-        self.qc_list = problems
-        (Path(self.root_dir) / "tools/2_Landmarking_v1.0/logs" / "qc_last.txt").write_text(
-            "\n".join([f\"{Path(self.images[i]).name}: {r}\" for i, r in self.qc_list]), encoding=\"utf-8\"
-        )
-
+    """Swap-only QC: после мини-GPA LM_k ближе к чужому центроиду, чем к своему."""
+    N = self.N
+    imgs = self.images
+    shapes, idxs = [], []
+    for i, fp in enumerate(imgs):
+        pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
+        if len(pts) == N:
+            shapes.append(pts); idxs.append(i)
+    self.qc_list = []
+    if len(shapes) < 2:
+        return
+    aligned, mean = gpa_align(shapes, iters=10)
+    problems = []
+    eps = 1e-9
+    for idx_img, sh in zip(idxs, aligned):
+        reasons = []
+        for k, (x, y) in enumerate(sh):
+            mx, my = mean[k]
+            d_self = ((x - mx)**2 + (y - my)**2)**0.5
+            best_d = 1e18; best_j = None
+            for j, (qx, qy) in enumerate(mean):
+                if j == k: 
+                    continue
+                d = ((x - qx)**2 + (y - qy)**2)**0.5
+                if d < best_d:
+                    best_d, best_j = d, j
+            if best_d + eps < d_self:
+                reasons.append(f"LM{k+1} closer to LM{best_j+1}")
+        if reasons:
+            problems.append((idx_img, "; ".join(reasons)))
+    problems.sort(key=lambda x: x[0])
+    self.qc_list = problems
+    out_path = Path(self.root_dir) / "tools/2_Landmarking_v1.0/logs" / "qc_last.txt"
+    out_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}" for i, r in self.qc_list]),
+                        encoding="utf-8")
     def toggle_qc(self, *_):
         if self.scale_mode:
             messagebox.showinfo("Scale first", "Finish Scale Wizard first.")
