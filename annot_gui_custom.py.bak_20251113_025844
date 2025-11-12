@@ -593,7 +593,7 @@ def run_qc(self):
         problems.sort(key=lambda x: x[0])
         self.qc_list = problems
         out_path = Path(self.root_dir) / "tools/2_Landmarking_v1.0/logs" / "qc_last.txt"
-        out_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}" for i, r in self.qc_list]), encoding="utf-8")
+        out_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}\" for i, r in self.qc_list]), encoding="utf-8")
 
     def _qc_refresh_and_locate(self):
         self.run_qc()
@@ -687,6 +687,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
 
 

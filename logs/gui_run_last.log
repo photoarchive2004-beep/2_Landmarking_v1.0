@@ -1,4 +1,4 @@
-  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 596
-    out_path.write_text("\n".join([f"{Path(self.images[i]).name}: {r}\" for i, r in self.qc_list]), encoding="utf-8")
-                                                                                                                   ^
-SyntaxError: unterminated string literal (detected at line 596)
+  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 598
+    def _qc_refresh_and_locate(self):
+                                     ^
+IndentationError: unindent does not match any outer indentation level
