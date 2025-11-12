@@ -38,25 +38,33 @@ if not exist "%PHOTOS_DIR%" (
   exit /b 1
 )
 
-rem ---- Menu of localities (done/total, pct, Set Scale!) ----
+rem ---- Print menu (non-interactive) ----
 echo.
-for /f "usebackq delims=" %%L in (`"%PY%" "%TOOL_DIR%\scripts\menu_list.py"`) do set "SEL_LOC=%%L"
+"%PY%" "%TOOL_DIR%\scripts\menu_list.py" --print
+
+rem ---- Ask number in BAT ----
+set "SEL_LOC="
+set /p CH=Enter number (or Q to quit): 
+if /I "!CH!"=="Q" goto :EOF
+
+rem ---- Validate selection via --pick and capture one-line output ----
+for /f "usebackq delims=" %%L in (`"%PY%" "%TOOL_DIR%\scripts\menu_list.py" --pick !CH!`) do set "SEL_LOC=%%L"
 
 if not defined SEL_LOC (
-  echo [INFO] No locality selected. Exiting...
-  goto :EOF
+  echo [ERR] Invalid selection.
+  pause
+  exit /b 2
 )
 
 echo [INFO] Selected locality: !SEL_LOC!
 set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
-
 if not exist "!PNG_DIR!" (
   echo [ERR] Locality path not found: !PNG_DIR!
   pause
   exit /b 2
 )
 
-rem TODO: engine select (custom/std) and GUI launch will be added next
+rem TODO: engine select + GUI launch next
 echo.
 echo [INFO] Placeholder: next step is GUI launch for "!SEL_LOC!" (custom engine).
 echo [INFO] Press any key to exit...
