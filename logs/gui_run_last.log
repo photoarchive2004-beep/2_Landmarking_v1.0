@@ -1,4 +1,0 @@
-  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 976
-    """Swap-only QC: после мини-GPA LM_k ближе к чужому центроиду, чем к своему."""
-    ^
-IndentationError: expected an indented block after function definition on line 975
