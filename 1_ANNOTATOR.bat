@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
-rem ---- Paths (relative) ----
+rem ---- Paths ----
 set "HERE=%~dp0"
 for %%I in ("%HERE%\..\..") do set "ROOT=%%~fI"
 set "TOOL_DIR=%ROOT%\tools\2_Landmarking_v1.0"
@@ -10,7 +10,7 @@ set "PHOTOS_DIR=%ROOT%\photos"
 set "LOG_DIR=%TOOL_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
-rem ---- Python resolver (venv -> py -3 -> python) ----
+rem ---- Python resolver ----
 set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
 if not exist "%PY%" (
   where.exe py >nul 2>&1 && (set "PY=py -3")
@@ -38,29 +38,21 @@ if not exist "%PHOTOS_DIR%" (
   exit /b 1
 )
 
-rem ---- Print menu (non-interactive) ----
+rem ---- Menu ----
 echo.
 %PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
-
-rem ---- Ask number in BAT ----
 set "SEL_LOC="
 set /p CH=Enter number (or Q to quit): 
 if /I "!CH!"=="Q" goto :EOF
 
-rem ---- Validate selection via Python -> temp file (avoid FOR /F issues) ----
 set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
 %PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
-if exist "!TMP_SEL!" (
-  set /p SEL_LOC=<"!TMP_SEL!"
-  del /q "!TMP_SEL!" 2>nul
-)
-
+if exist "!TMP_SEL!" ( set /p SEL_LOC=<"!TMP_SEL!" & del /q "!TMP_SEL!" 2>nul )
 if not defined SEL_LOC (
   echo [ERR] Invalid selection.
   pause
   exit /b 2
 )
-
 echo [INFO] Selected locality: !SEL_LOC!
 set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
 if not exist "!PNG_DIR!" (
@@ -69,9 +61,19 @@ if not exist "!PNG_DIR!" (
   exit /b 2
 )
 
-rem TODO: engine select + GUI launch next
+rem ---- Engine select ----
 echo.
-echo [INFO] Placeholder: next step is GUI launch for "!SEL_LOC!" (custom engine).
-echo [INFO] Press any key to exit...
-pause >nul
+echo Annotator engine:
+echo   1^) Custom (default)
+echo   2^) Standard Python
+set /p ENG=Select [1]:
+if "!ENG!"=="2" ( set "ENGINE=std" ) else ( set "ENGINE=custom" )
+
+if /I "!ENGINE!"=="custom" (
+  %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" --csv-format tpsutils
+) else (
+  echo [WARN] Standard engine is not implemented yet.
+  pause
+)
+
 exit /b 0
