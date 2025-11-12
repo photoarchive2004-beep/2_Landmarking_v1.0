@@ -144,9 +144,22 @@ class AnnotGUI(tk.Tk):
         top.pack(fill=tk.X)
         self.banner = tk.Label(top, text="", fg="#00FFFF", bg="black", font=("Segoe UI", 12, "bold"))
         self.banner.pack(side=tk.LEFT, padx=(8, 6), pady=4, fill=tk.X, expand=True)
+
+        # QC tolerance controls (entry + button + glowing label)
+        self.qc_tol = 0.25
+        self.qcTolVar = tk.StringVar(value="0.25")
+        self.qcTolLabel = tk.Label(top, text="tol=0.25", fg="#FFA500", bg="black", font=("Segoe UI", 10, "bold"))
+        self.qcTolLabel.pack(side=tk.RIGHT, padx=(4,4), pady=4)
+        self.qcTolBtn = tk.Button(top, text="Set tol", command=self.set_qc_tol)
+        self.qcTolBtn.pack(side=tk.RIGHT, padx=(4,4), pady=4)
+        self.qcTolEntry = tk.Entry(top, width=5, textvariable=self.qcTolVar, justify="center")
+        self.qcTolEntry.pack(side=tk.RIGHT, padx=(4,2), pady=4)
+
         self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self.toggle_qc)
         self.btnQC.pack(side=tk.RIGHT, padx=8, pady=4)
+
         self.btnScale = tk.Button(top, text="Save scale (Enter)", command=lambda: self.finish_scale(True))
+        # показывается только в scale-mode (apply_banner управляет)
 
         # --- canvas + status ---
         self.canvas = tk.Canvas(self, bg="gray10", highlightthickness=0)
@@ -169,7 +182,8 @@ class AnnotGUI(tk.Tk):
         self.scale_mode = bool(scale_wizard)
         self.scale_pts = []
         self.qc_mode = False
-        self.qc_list = []
+        self.qc_list = []      # [(img_idx, "reasons")]
+        self.qc_marks = {}     # img_idx -> [(k, best_j)]
         self.qc_pos = 0
 
         # bindings
@@ -195,7 +209,7 @@ class AnnotGUI(tk.Tk):
         self._loaded = False
         self.load_image(self.images[self.idx])
 
-        # GUI fallback: auto-scale if first PNG has no .scale.csv
+        # auto-scale fallback
         first_png = Path(self.images[0]).name
         scale_must = Path(self.images[0]).with_name(first_png + ".scale.csv")
         if not scale_must.exists():
@@ -280,24 +294,33 @@ class AnnotGUI(tk.Tk):
                 text="SCALE MODE — place TWO cyan squares on 10 mm, then Enter / Save button.",
                 fg="#00FFFF",
             )
-            try:
-                self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
-            except Exception:
-                pass
+            try: self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
+            except Exception: pass
             try:
                 self.btnQC.configure(state="disabled")
-            except Exception:
-                pass
+                self.qcTolEntry.configure(state="disabled")
+                self.qcTolBtn.configure(state="disabled")
+                self.qcTolLabel.configure(text=f"tol={self.qc_tol:.2f}")
+            except Exception: pass
         else:
-            self.banner.config(text="")
+            if self.qc_mode:
+                total = len(self.qc_list)
+                self.banner.config(text=f"QC MODE — {total} suspicious frames. F9 to exit.", fg="#FF5555")
+                try: self.btnQC.configure(text="Exit Quick Check (F9)")
+                except Exception: pass
+            else:
+                self.banner.config(text="", fg="#00FFFF")
+                try: self.btnQC.configure(text="Quick Check (F9)")
+                except Exception: pass
             try:
                 self.btnScale.pack_forget()
-            except Exception:
-                pass
+            except Exception: pass
             try:
                 self.btnQC.configure(state="normal")
-            except Exception:
-                pass
+                self.qcTolEntry.configure(state="normal")
+                self.qcTolBtn.configure(state="normal")
+                self.qcTolLabel.configure(text=f"tol={self.qc_tol:.2f}")
+            except Exception: pass
         self.update_status()
 
     def update_status(self):
@@ -305,7 +328,10 @@ class AnnotGUI(tk.Tk):
         T = len(self.images)
         loc = Path(self.png_dir).parent.name
         name = Path(self.img_path).name
-        extra = " | SCALE MODE (10 mm)" if self.scale_mode else f" | +/- size {self.radius}px | X/Ctrl+B: move to bad"
+        tail = ""
+        if self.qc_mode and self.qc_list:
+            tail = f" | QC {self.qc_pos+1}/{len(self.qc_list)}"
+        extra = " | SCALE MODE (10 mm)" if self.scale_mode else f" | +/- size {self.radius}px | X/Ctrl+B: move to bad{tail}"
         self.status.config(text=f"Image {i} of {T} | {name} | {loc}{extra}")
         self.title(f"GM Points Annotator - {name} [{i}/{T}]")
 
@@ -321,21 +347,36 @@ class AnnotGUI(tk.Tk):
         disp = self.img.resize((max(1, int(w * self.zoom)), max(1, int(h * self.zoom))), res)
         self.photo = ImageTk.PhotoImage(disp)
         self.canvas.create_image(self.offset[0], self.offset[1], anchor="nw", image=self.photo)
+
+        # Scale mode: cyan squares
         if self.scale_mode:
             for i, (x, y) in enumerate(self.scale_pts, start=1):
                 dx, dy = self.i2d(x, y)
                 r = self.radius + 2
                 self.canvas.create_rectangle(dx - r, dy - r, dx + r, dy + r, outline="#00FFFF", width=2)
                 self._draw_label(dx + r + 6, dy, f"S{i}", "#00FFFF")
-        else:
-            for idx, pt in enumerate(self.slots, start=1):
-                if pt is None:
-                    continue
-                x, y = pt
-                dx, dy = self.i2d(x, y)
-                r = self.radius
-                self.canvas.create_oval(dx - r, dy - r, dx + r, dy + r, outline="red", width=2)
-                self._draw_label(dx + r + 6, dy, str(idx))
+            return
+
+        # Regular points
+        for idx, pt in enumerate(self.slots, start=1):
+            if pt is None:
+                continue
+            x, y = pt
+            dx, dy = self.i2d(x, y)
+            r = self.radius
+            self.canvas.create_oval(dx - r, dy - r, dx + r, dy + r, outline="red", width=2)
+            self._draw_label(dx + r + 6, dy, str(idx))
+
+        # QC highlights
+        if self.qc_mode and self.qc_marks:
+            marks = self.qc_marks.get(self.idx, [])
+            for (k, j) in marks:
+                pt = self.slots[k] if 0 <= k < len(self.slots) else None
+                if pt:
+                    dx, dy = self.i2d(pt[0], pt[1])
+                    r = self.radius + 3
+                    self.canvas.create_oval(dx - r, dy - r, dx + r, dy + r, outline="#FF00FF", width=3)
+                    self._draw_label(dx + r + 8, dy, f"{k+1}->{j+1}", "#FF00FF")
 
     # events
     def on_left_click(self, e):
@@ -464,9 +505,9 @@ class AnnotGUI(tk.Tk):
         elif k == "h":
             messagebox.showinfo(
                 "Help",
-                "F9: QC swap-only\nLeft/Right: prev/next\nLMB: add/drag (fills first free index)\n"
-                "RMB drag: pan\nCtrl+wheel: zoom\n+/-: size\nDelete/Ctrl+D: delete\nX/Ctrl+B: move to bad\n"
-                "Ctrl+S: save\nEnter/Btn (Scale): save scale\nF: search",
+                "F9: QC swap-only | tol: fraction (e.g., 0.25)\n"
+                "Left/Right: prev/next | LMB: add/drag | RMB drag: pan | Ctrl+wheel: zoom | +/-: size\n"
+                "Delete/Ctrl+D: delete | X/Ctrl+B: move to bad | Ctrl+S: save | Enter in Scale: save scale | F: search",
             )
 
     def on_key_up(self, e):
@@ -482,18 +523,36 @@ class AnnotGUI(tk.Tk):
             self.slots[j] = None
             self.redraw()
 
-    # ---------- QC (swap-only) ----------
+    # ---------- QC core ----------
+    def set_qc_tol(self):
+        """Read entry, clamp to [0..0.9], update label, recompute suspicious list (if in QC)."""
+        s = (self.qcTolVar.get() or "").strip().replace(",", ".")
+        try:
+            v = float(s)
+        except Exception:
+            messagebox.showinfo("QC tol", "Enter a number like 0.25")
+            return
+        v = max(0.0, min(0.9, v))
+        self.qc_tol = v
+        try:
+            self.qcTolLabel.configure(text=f"tol={self.qc_tol:.2f}")
+        except Exception:
+            pass
+        # if QC is active, refresh list and reposition
+        if self.qc_mode:
+            self._qc_refresh_and_locate()
+
     def run_qc(self):
-        """После мини-GPA LM_k ближе к центроиду другого LM_j, чем к своему."""
+        """После мини-GPA LM_k ближе к центроиду другого LM_j, чем к своему на >= tol."""
         N = self.N
         imgs = self.images
         shapes, idxs = [], []
         for i, fp in enumerate(imgs):
             pts = read_any_csv_points(Path(fp).with_suffix(".csv"))
             if len(pts) == N:
-                shapes.append(pts)
-                idxs.append(i)
+                shapes.append(pts); idxs.append(i)
         self.qc_list = []
+        self.qc_marks = {}
         if len(shapes) < 2:
             return
         aligned, mean = gpa_align(shapes, iters=10)
@@ -501,21 +560,23 @@ class AnnotGUI(tk.Tk):
         eps = 1e-9
         for idx_img, sh in zip(idxs, aligned):
             reasons = []
+            marks = []
             for k, (x, y) in enumerate(sh):
                 mx, my = mean[k]
                 d_self = ((x - mx) ** 2 + (y - my) ** 2) ** 0.5
-                best_d = 1e18
-                best_j = None
+                best_d = 1e18; best_j = None
                 for j, (qx, qy) in enumerate(mean):
-                    if j == k:
-                        continue
+                    if j == k: continue
                     d = ((x - qx) ** 2 + (y - qy) ** 2) ** 0.5
                     if d < best_d:
                         best_d, best_j = d, j
-                if best_d + eps < d_self:
+                # margin rule: must be closer by at least (tol * d_self)
+                if best_d + eps < d_self * (1.0 - self.qc_tol):
                     reasons.append(f"LM{k+1} closer to LM{best_j+1}")
+                    marks.append((k, best_j))
             if reasons:
                 problems.append((idx_img, "; ".join(reasons)))
+                self.qc_marks[idx_img] = marks
         problems.sort(key=lambda x: x[0])
         self.qc_list = problems
         out_path = Path(self.root_dir) / "tools/2_Landmarking_v1.0/logs" / "qc_last.txt"
@@ -524,36 +585,55 @@ class AnnotGUI(tk.Tk):
             encoding="utf-8",
         )
 
+    def _qc_refresh_and_locate(self):
+        """Recompute list; if empty — exit QC. Otherwise keep nearest suspect and show it."""
+        self.run_qc()
+        if not self.qc_list:
+            self.qc_mode = False
+            self.apply_banner()
+            messagebox.showinfo("QC finished", "No suspicious frames left.")
+            self.redraw("hq")
+            return False
+        idxs = [i for i, _ in self.qc_list]
+        # keep current if still suspicious, else jump to nearest next
+        if self.idx in idxs:
+            self.qc_pos = idxs.index(self.idx)
+        else:
+            # nearest index >= current, else wrap
+            pos = 0
+            for p, i in enumerate(idxs):
+                if i >= self.idx:
+                    pos = p; break
+            self.qc_pos = pos
+            self.idx = idxs[self.qc_pos]
+            self.load_image(self.images[self.idx])
+        self.apply_banner()
+        return True
+
     def toggle_qc(self, *_):
         if self.scale_mode:
             messagebox.showinfo("Scale first", "Finish Scale Wizard first.")
             return
         if not self.qc_mode:
-            self.run_qc()
-            if not self.qc_list:
-                messagebox.showinfo("QC", "No swaps detected.")
+            if not self._qc_refresh_and_locate():
                 return
             self.qc_mode = True
-            idxs = [i for i, _ in self.qc_list]
-            pos = 0
-            for p, i in enumerate(idxs):
-                if i >= self.idx:
-                    pos = p
-                    break
-            self.qc_pos = pos
-            self.idx = idxs[self.qc_pos]
+            self.apply_banner()
             self.load_image(self.images[self.idx])
         else:
             self.qc_mode = False
-            self.banner.config(text="")
+            self.apply_banner()
             self.redraw("hq")
 
     # navigation
     def prev_image(self):
         if not self.auto_save_on_switch():
             return
-        if self.qc_mode and self.qc_list and self.qc_pos > 0:
-            self.qc_pos -= 1
+        if self.qc_mode:
+            if not self._qc_refresh_and_locate():
+                return
+            # move backward within suspicious list (circular)
+            self.qc_pos = (self.qc_pos - 1) % len(self.qc_list)
             self.idx = self.qc_list[self.qc_pos][0]
             self.load_image(self.images[self.idx])
             return
@@ -564,8 +644,11 @@ class AnnotGUI(tk.Tk):
     def next_image(self):
         if not self.auto_save_on_switch():
             return
-        if self.qc_mode and self.qc_list and self.qc_pos < len(self.qc_list) - 1:
-            self.qc_pos += 1
+        if self.qc_mode:
+            if not self._qc_refresh_and_locate():
+                return
+            # move forward within suspicious list (circular)
+            self.qc_pos = (self.qc_pos + 1) % len(self.qc_list)
             self.idx = self.qc_list[self.qc_pos][0]
             self.load_image(self.images[self.idx])
             return
