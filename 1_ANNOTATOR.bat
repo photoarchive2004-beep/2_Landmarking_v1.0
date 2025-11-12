@@ -40,15 +40,20 @@ if not exist "%PHOTOS_DIR%" (
 
 rem ---- Print menu (non-interactive) ----
 echo.
-"%PY%" "%TOOL_DIR%\scripts\menu_list.py" --print
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
 
 rem ---- Ask number in BAT ----
 set "SEL_LOC="
 set /p CH=Enter number (or Q to quit): 
 if /I "!CH!"=="Q" goto :EOF
 
-rem ---- Validate selection via --pick and capture one-line output ----
-for /f "usebackq delims=" %%L in (`"%PY%" "%TOOL_DIR%\scripts\menu_list.py" --pick !CH!`) do set "SEL_LOC=%%L"
+rem ---- Validate selection via Python -> temp file (avoid FOR /F issues) ----
+set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+if exist "!TMP_SEL!" (
+  set /p SEL_LOC=<"!TMP_SEL!"
+  del /q "!TMP_SEL!" 2>nul
+)
 
 if not defined SEL_LOC (
   echo [ERR] Invalid selection.

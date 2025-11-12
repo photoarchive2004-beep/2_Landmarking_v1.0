@@ -1,12 +1,29 @@
 import os, sys
 
 HERE = os.path.dirname(__file__)
-ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-TOOL = os.path.join(ROOT, "tools", "2_Landmarking_v1.0")
-PHOTOS = os.path.join(ROOT, "photos")
-LM_FILE = os.path.join(TOOL, "LM_number.txt")
+def default_root():
+    # scripts -> 2_Landmarking_v1.0 -> tools -> GM
+    return os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 
-def read_npoints():
+def parse_args(argv):
+    args = {"mode":"print", "pick":None, "root":None}
+    it = iter(range(len(argv)))
+    i = 0
+    while i < len(argv):
+        a = argv[i]
+        if a == "--print": args["mode"] = "print"
+        elif a == "--pick":
+            args["mode"] = "pick"
+            if i+1 < len(argv):
+                try: args["pick"] = int(argv[i+1]); i += 1
+                except: pass
+        elif a == "--root":
+            if i+1 < len(argv):
+                args["root"] = argv[i+1]; i += 1
+        i += 1
+    return args
+
+def read_npoints(LM_FILE):
     try:
         with open(LM_FILE, "r", encoding="utf-8-sig") as f:
             s = f.readline().strip()
@@ -22,9 +39,9 @@ def parse_wide_nums(line):
         except: pass
     return vals
 
-def image_is_done(img_path, N):
-    base = os.path.splitext(os.path.basename(img_path))[0]
-    csv_path = os.path.join(os.path.dirname(img_path), base + ".csv")
+def image_is_done(png_path, N):
+    base = os.path.splitext(os.path.basename(png_path))[0]
+    csv_path = os.path.join(os.path.dirname(png_path), base + ".csv")
     if not os.path.exists(csv_path): 
         return False
     try:
@@ -39,89 +56,55 @@ def image_is_done(img_path, N):
     except:
         return False
 
-def has_any_scale(img_dir):
+def has_any_scale(png_dir):
     try:
-        for fn in os.listdir(img_dir):
+        for fn in os.listdir(png_dir):
             if fn.lower().endswith(".scale.csv"):
                 return True
     except: pass
     return False
 
-def collect_localities():
+def collect_localities(PHOTOS):
     if not os.path.isdir(PHOTOS):
         return []
-    return [d for d in sorted(os.listdir(PHOTOS))
-            if os.path.isdir(os.path.join(PHOTOS, d))]
-
-def get_images_dir(loc):
-    # предпочтительно <loc>\png, иначе сам <loc>
-    p_png = os.path.join(PHOTOS, loc, "png")
-    p_loc = os.path.join(PHOTOS, loc)
-    def count_png(p):
-        try:
-            return len([f for f in os.listdir(p) if f.lower().endswith(".png")])
-        except: return 0
-    if os.path.isdir(p_png):
-        if count_png(p_png) > 0: return p_png
-        # даже если пусто, используем png как целевой каталог
-        return p_png
-    return p_loc
-
-def list_pngs(img_dir):
-    if not os.path.isdir(img_dir): return []
-    try:
-        return [os.path.join(img_dir, f) for f in os.listdir(img_dir)
-                if f.lower().endswith(".png")]
-    except:
-        return []
-
-def compute_status(loc, N):
-    img_dir = get_images_dir(loc)
-    pngs = list_pngs(img_dir)
-    total = len(pngs)
-    done = sum(image_is_done(p, N) for p in pngs) if (N and total) else 0
-    pct = int(round((done / total * 100), 0)) if total else 0
-    need_scale = (total and done == total and not has_any_scale(img_dir))
-    return total, done, pct, need_scale, img_dir
+    names = []
+    for d in sorted(os.listdir(PHOTOS)):
+        png_dir = os.path.join(PHOTOS, d, "png")
+        if os.path.isdir(png_dir): 
+            names.append(d)
+    return names
 
 def main():
-    args = sys.argv[1:]
-    N = read_npoints()
-    locs = collect_localities()
+    a = parse_args(sys.argv[1:])
+    ROOT = os.path.abspath(a["root"]) if a["root"] else default_root()
+    TOOL = os.path.join(ROOT, "tools", "2_Landmarking_v1.0")
+    PHOTOS = os.path.join(ROOT, "photos")
+    LM_FILE = os.path.join(TOOL, "LM_number.txt")
+    N = read_npoints(LM_FILE)
+    locs = collect_localities(PHOTOS)
 
-    if "--print" in args or not args:
+    if a["mode"] == "print":
         if not locs:
             print("No localities found in 'photos'.")
             return 0
         for i, loc in enumerate(locs, 1):
-            total, done, pct, need_scale, _ = compute_status(loc, N)
-            line = f"{i}) {loc} [{done}/{total}] {pct}%"
-            if need_scale: line += "  Set Scale!"
+            png_dir = os.path.join(PHOTOS, loc, "png")
+            pngs = [os.path.join(png_dir, f) for f in os.listdir(png_dir) if f.lower().endswith(".png")]
+            total = len(pngs)
+            done  = sum(image_is_done(p, N) for p in pngs) if (N and total) else 0
+            pct   = int(round((done / total * 100), 0)) if total else 0
+            line  = f"{i}) {loc} [{done}/{total}] {pct}%"
+            if total and done == total and not has_any_scale(png_dir):
+                line += "  Set Scale!"
             print(line)
         print("Enter a number to open locality, or Q to quit:")
         return 0
 
-    if "--pick" in args:
-        try:
-            idx = args.index("--pick")
-            num = int(args[idx+1])
-        except Exception:
+    if a["mode"] == "pick":
+        if not (a["pick"] and 1 <= a["pick"] <= len(locs)): 
             return 2
-        if 1 <= num <= len(locs):
-            print(locs[num-1], end="")
-            return 0
-        return 2
-
-    if "--imgpath" in args:
-        try:
-            idx = args.index("--imgpath")
-            loc = args[idx+1]
-        except Exception:
-            return 2
-        if loc in locs:
-            print(get_images_dir(loc), end="")
-            return 0
-        return 2
+        print(locs[a["pick"]-1], end="")
+        return 0
 
     return 0
 
