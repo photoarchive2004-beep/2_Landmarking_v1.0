@@ -119,7 +119,10 @@ class AnnotGUI(tk.Tk):
         self.banner.pack(side=tk.LEFT, padx=(8,6), pady=4, fill=tk.X, expand=True)
         self.btnScale=tk.Button(top, text="Save scale (Enter)", command=lambda: self.finish_scale(True))
 
-        self.canvas=tk.Canvas(self, bg="gray10", highlightthickness=0); self.canvas.pack(fill=tk.BOTH, expand=True)
+        
+        self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self.toggle_qc)
+        self.btnQC.pack(side=tk.RIGHT, padx=8, pady=4)
+self.canvas=tk.Canvas(self, bg="gray10", highlightthickness=0); self.canvas.pack(fill=tk.BOTH, expand=True)
         self.status=tk.Label(self, text="", anchor="w", bg="black", fg="white"); self.status.pack(fill=tk.X)
         self.font_lbl=("Segoe UI", 11, "bold")
 
@@ -127,7 +130,7 @@ class AnnotGUI(tk.Tk):
         self.radius=6; self.zoom=1.0; self.offset=[0.0,0.0]
         self.dragging_idx=None; self.dragging_canvas=False
         self.photo=None; self.img=None
-        self.slots=[None]*self.N                 # стабильная нумерация
+        self.slots=[None]*self.N                 # СЃС‚Р°Р±РёР»СЊРЅР°СЏ РЅСѓРјРµСЂР°С†РёСЏ
 
         # modes
         self.scale_mode=bool(scale_wizard); self.scale_pts=[]
@@ -149,7 +152,7 @@ class AnnotGUI(tk.Tk):
         self._loaded=False
         self.load_image(self.images[self.idx])
 
-        # GUI-fallback автозапуска масштаба (если .bat пропустил)
+        # GUI-fallback Р°РІС‚РѕР·Р°РїСѓСЃРєР° РјР°СЃС€С‚Р°Р±Р° (РµСЃР»Рё .bat РїСЂРѕРїСѓСЃС‚РёР»)
         first_png = Path(self.images[0]).name
         scale_must = Path(self.images[0]).with_name(first_png + ".scale.csv")
         if not scale_must.exists():
@@ -202,17 +205,20 @@ class AnnotGUI(tk.Tk):
         self.save_current(); return True
 
     # UI
-    def apply_banner(self):
+        def apply_banner(self):
         if self.scale_mode:
             self.banner.config(text="SCALE MODE — place TWO cyan squares on 10 mm, then Enter / Save button.", fg="#00FFFF")
             try: self.btnScale.pack(side=tk.RIGHT, padx=8, pady=4)
+            except: pass
+            try: self.btnQC.configure(state="disabled")
             except: pass
         else:
             self.banner.config(text="")
             try: self.btnScale.pack_forget()
             except: pass
+            try: self.btnQC.configure(state="normal")
+            except: pass
         self.update_status()
-
     def update_status(self):
         i=self.idx+1; T=len(self.images); loc=Path(self.png_dir).parent.name; name=Path(self.img_path).name
         extra=(" | SCALE MODE (10 mm)" if self.scale_mode else f" | +/- size {self.radius}px | X/Ctrl+B: move to bad")
@@ -334,7 +340,7 @@ class AnnotGUI(tk.Tk):
 
     # -------------------- QC (swap-only) --------------------
     def run_qc(self):
-        """Только перепутанность: после GPA LM_k ближе к центроиду другого LM_j, чем к своему."""
+        """РўРѕР»СЊРєРѕ РїРµСЂРµРїСѓС‚Р°РЅРЅРѕСЃС‚СЊ: РїРѕСЃР»Рµ GPA LM_k Р±Р»РёР¶Рµ Рє С†РµРЅС‚СЂРѕРёРґСѓ РґСЂСѓРіРѕРіРѕ LM_j, С‡РµРј Рє СЃРІРѕРµРјСѓ."""
         N=self.N; imgs=self.images
         shapes=[]; idxs=[]
         for i,fp in enumerate(imgs):
@@ -375,7 +381,7 @@ class AnnotGUI(tk.Tk):
             if not self.qc_list:
                 messagebox.showinfo("QC","No swaps detected."); return
             self.qc_mode=True
-            # перейти к первой проблеме >= текущего
+            # РїРµСЂРµР№С‚Рё Рє РїРµСЂРІРѕР№ РїСЂРѕР±Р»РµРјРµ >= С‚РµРєСѓС‰РµРіРѕ
             idxs=[i for i,_ in self.qc_list]
             pos=0
             for p,i in enumerate(idxs):

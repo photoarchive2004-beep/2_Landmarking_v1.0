@@ -10,10 +10,6 @@ set "PHOTOS_DIR=%ROOT%\photos"
 set "LOG_DIR=%TOOL_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
-echo [DIAG] ROOT=%ROOT%
-echo [DIAG] TOOL_DIR=%TOOL_DIR%
-echo [DIAG] PHOTOS_DIR=%PHOTOS_DIR%
-
 rem ---- Python resolver ----
 set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
 if not exist "%PY%" (
