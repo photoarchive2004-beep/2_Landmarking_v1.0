@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
-rem ---- Paths (relative; no absolutes) ----
+rem ---- Paths (relative) ----
 set "HERE=%~dp0"
 for %%I in ("%HERE%\..\..") do set "ROOT=%%~fI"
 set "TOOL_DIR=%ROOT%\tools\2_Landmarking_v1.0"
@@ -38,13 +38,27 @@ if not exist "%PHOTOS_DIR%" (
   exit /b 1
 )
 
-echo [INFO] ROOT      = %ROOT%
-echo [INFO] TOOL_DIR  = %TOOL_DIR%
-echo [INFO] PHOTOS    = %PHOTOS_DIR%
-echo [INFO] LM_number =
-if exist "%TOOL_DIR%\LM_number.txt" (type "%TOOL_DIR%\LM_number.txt") else (echo [WARN] LM_number.txt missing)
-
+rem ---- Menu of localities (done/total, pct, Set Scale!) ----
 echo.
-echo [INFO] Stub annotator is running. Press any key to exit...
+for /f "usebackq delims=" %%L in (`"%PY%" "%TOOL_DIR%\scripts\menu_list.py"`) do set "SEL_LOC=%%L"
+
+if not defined SEL_LOC (
+  echo [INFO] No locality selected. Exiting...
+  goto :EOF
+)
+
+echo [INFO] Selected locality: !SEL_LOC!
+set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
+
+if not exist "!PNG_DIR!" (
+  echo [ERR] Locality path not found: !PNG_DIR!
+  pause
+  exit /b 2
+)
+
+rem TODO: engine select (custom/std) and GUI launch will be added next
+echo.
+echo [INFO] Placeholder: next step is GUI launch for "!SEL_LOC!" (custom engine).
+echo [INFO] Press any key to exit...
 pause >nul
 exit /b 0
