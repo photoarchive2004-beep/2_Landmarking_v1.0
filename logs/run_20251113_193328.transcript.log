@@ -1,0 +1,64 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251113193328
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 16732
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+PS D:\GM\tools\2_Landmarking_v1.0> # 1) Снимок ключевых файлов (для диагностики)
+PS D:\GM\tools\2_Landmarking_v1.0> Copy-Item "$repoDir\1_ANNOTATOR.bat" "$logs\1_ANNOTATOR.bat.$ts.snapshot" -Force -ErrorAction SilentlyContinue
+PS D:\GM\tools\2_Landmarking_v1.0> Copy-Item "$repoDir\annot_gui_custom.py" "$logs\annot_gui_custom.py.$ts.snapshot" -Force -ErrorAction SilentlyContinue
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Базовая диагностика окружения
+PS D:\GM\tools\2_Landmarking_v1.0> "=== DIAG $(Get-Date -Format o) ===" | Out-File -FilePath (Join-Path $logs "diag_$ts.txt") -Encoding utf8
+PS D:\GM\tools\2_Landmarking_v1.0> $pyExe = "$repoDir\.venv_lm\Scripts\python.exe"; $pyArgs=@()
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $pyExe)) { if (Get-Command py -ErrorAction SilentlyContinue) { $pyExe="py"; $pyArgs=@("-3") } else { $pyExe="python" } }
+PS D:\GM\tools\2_Landmarking_v1.0> & $pyExe @pyArgs -V 2>&1 | Tee-Object -FilePath (Join-Path $logs "diag_$ts.txt") -Append | Out-Null
+PS D:\GM\tools\2_Landmarking_v1.0> & $pyExe @pyArgs -c "import sys;print('tk:',__import__('tkinter').TkVersion)" 2>&1 | Tee-Object -FilePath (Join-Path $logs "diag_$ts.txt") -Append | Out-Null
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Запуск 1_ANNOTATOR с полным редиректом вывода
+PS D:\GM\tools\2_Landmarking_v1.0> $stdout = Join-Path $logs "annotator_stdout_$ts.txt"
+PS D:\GM\tools\2_Landmarking_v1.0> $stderr = Join-Path $logs "annotator_stderr_$ts.txt"
+PS D:\GM\tools\2_Landmarking_v1.0> $combined = Join-Path $logs "annotator_combined_$ts.txt"
+PS D:\GM\tools\2_Landmarking_v1.0> $sw = [Diagnostics.Stopwatch]::StartNew()
+PS D:\GM\tools\2_Landmarking_v1.0> cmd /c ".\1_ANNOTATOR.bat" 1> "$stdout" 2> "$stderr"
+>> ParameterBinding(Out-File): имя="InputObject"; значение=""
+>> ParameterBinding(Out-File): имя="InputObject"; значение="D:\GM\tools\2_Landmarking_v1.0>я╗┐@echo off "
+>> TerminatingError(cmd.exe): "Выполнение команды остановлено, так как привилегированной переменной "ErrorActionPreference" или общему параметру присвоено значение Stop: "я╗┐@echo" не является внутренней или внешней"
+>> TerminatingError(cmd.exe): "Выполнение команды остановлено, так как привилегированной переменной "ErrorActionPreference" или общему параметру присвоено значение Stop: "я╗┐@echo" не является внутренней или внешней"
+Выполнение команды остановлено, так как привилегированной переменной "ErrorActionPreference" или общему параметру присвоено значение Stop: "я╗┐@echo" не является внутренней или внешней
+cmd : "я╗┐@echo" не является внутренней или внешней
+строка:1 знак:1
++ cmd /c ".\1_ANNOTATOR.bat" 1> "$stdout" 2> "$stderr"
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ("я╗┐@echo" не я...ней или внешней:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+PS D:\GM\tools\2_Landmarking_v1.0> $code = $LASTEXITCODE
+PS D:\GM\tools\2_Landmarking_v1.0> $sw.Stop()
+PS D:\GM\tools\2_Landmarking_v1.0> Get-Content $stdout, $stderr | Set-Content $combined
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Подхват GUI-логов, если есть
+PS D:\GM\tools\2_Landmarking_v1.0> $guiLast = Join-Path $repoDir "logs\annot_gui_last.log"
+PS D:\GM\tools\2_Landmarking_v1.0> if (Test-Path $guiLast) { Copy-Item $guiLast (Join-Path $logs "annot_gui_last_$ts.log") -Force }
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Итоговый статус
+PS D:\GM\tools\2_Landmarking_v1.0> $summary = @()
+PS D:\GM\tools\2_Landmarking_v1.0> $summary += "RUN_TS      : $ts"
+PS D:\GM\tools\2_Landmarking_v1.0> $summary += "EXIT_CODE   : $code"
+PS D:\GM\tools\2_Landmarking_v1.0> $summary += "DURATION_S  : {0:N3}" -f $sw.Elapsed.TotalSeconds
+PS D:\GM\tools\2_Landmarking_v1.0> $summary += "STDOUT_SIZE : $((Get-Item $stdout -ErrorAction SilentlyContinue).Length)"
+PS D:\GM\tools\2_Landmarking_v1.0> $summary += "STDERR_SIZE : $((Get-Item $stderr -ErrorAction SilentlyContinue).Length)"
+PS D:\GM\tools\2_Landmarking_v1.0> $summary | Out-File -FilePath (Join-Path $logs "run_summary_$ts.txt") -Encoding utf8
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript | Out-Null
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251113193328
+**********************
