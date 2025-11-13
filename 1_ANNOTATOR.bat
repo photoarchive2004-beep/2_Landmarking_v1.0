@@ -18,6 +18,15 @@ if errorlevel 1 (
 )
 
 
+rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt, if present ----
+set "CFG_DIR=%TOOL_DIR%\cfg"
+set "LAST_BASE=%CFG_DIR%\last_base.txt"
+if exist "%LAST_BASE%" (
+  set /p PHOTOS_DIR=<"%LAST_BASE%"
+)
+if not defined PHOTOS_DIR (
+  set "PHOTOS_DIR=%ROOT%\photos"
+)
 rem ---- Python resolver ----
 set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
 if not exist "%PY%" (
@@ -93,6 +102,7 @@ if not "!RC!"=="0" (
   pause
 )
 exit /b 0
+
 
 
 

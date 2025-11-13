@@ -126,3 +126,9 @@
 [00:04:41] [LOAD] img_001415.png pts=16/16 scale=False
 [00:04:44] [SAVE] img_001415.csv pts=16 OK
 [01:11:27] [LOAD] img_001415.png pts=16/16 scale=False
+[01:18:15] [LOAD] img_001415.png pts=16/16 scale=False
+[01:18:18] [SAVE] img_001415.csv pts=16 OK
+[01:18:18] [LOAD] img_002416.png pts=16/16 scale=False
+[01:18:22] [SAVE] img_002416.csv pts=16 OK
+[01:19:59] [LOAD] img_001415.png pts=16/16 scale=False
+[01:20:02] [SAVE] img_001415.csv pts=16 OK
