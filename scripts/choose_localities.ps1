@@ -2,86 +2,62 @@
   [string]$Title = "Choose LOCALITIES base (folder with <locality>\\png)",
   [switch]$Silent
 )
+
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 
-$tool = Split-Path -Parent $PSScriptRoot        # ...\tools\2_Landmarking_v1.0
-$root = Split-Path -Parent $tool                # ...\GM
+# tool = ...\tools\2_Landmarking_v1.0
+$tool = Split-Path -Parent $PSScriptRoot
+# rootTools = ...\tools
+$rootTools = Split-Path -Parent $tool
+# grandRoot = ...\GM
+$grandRoot = Split-Path -Parent $rootTools
+
 $cfg  = Join-Path $tool "cfg"
 $logs = Join-Path $tool "logs"
 $last = Join-Path $cfg  "last_base.txt"
 New-Item -ItemType Directory -Force -Path $cfg,$logs | Out-Null
 
-# СЃС‚Р°СЂС‚РѕРІС‹Р№ РїСѓС‚СЊ
+# стартовая папка для диалога
 $init = ""
 if (Test-Path $last) {
-  try { $init = Get-Content $last -Raw } catch {}
+    try { $init = (Get-Content $last -Raw).Trim() } catch { $init = "" }
 }
 if (-not $init) {
-  $def = Join-Path $root "photos"
-  if (Test-Path $def) { $init = $def } else { $init = $root }
+    $def = Join-Path $grandRoot "photos"
+    if (Test-Path $def) { $init = $def } else { $init = $grandRoot }
 }
 
-# РґРёР°Р»РѕРі РІС‹Р±РѕСЂР° РїР°РїРєРё
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = $Title
 $dlg.SelectedPath = $init
 $dlg.ShowNewFolderButton = $false
 $res = $dlg.ShowDialog()
+
+# Если нажали Cancel — тихо выходим, НИКАКИХ вопросов, exitcode=0
 if ($res -ne [System.Windows.Forms.DialogResult]::OK) {
-  if (-not $Silent) { Write-Host "[INFO] Localities base selection cancelled by user." }
-  exit 1
+    if (-not $Silent) { Write-Host "[INFO] Localities base selection cancelled by user." }
+    $log = Join-Path $logs "choose_localities_last.log"
+    @(
+      "TS=$(Get-Date)",
+      "CANCELLED=1"
+    ) | Out-File -FilePath $log -Encoding utf8
+    exit 0
 }
 
 $chosen = $dlg.SelectedPath
 
-# Р·Р°РїРѕРјРЅРёРј РІС‹Р±СЂР°РЅРЅСѓСЋ Р±Р°Р·Сѓ
+# Пишем выбранную базу локальностей в cfg\last_base.txt
 [System.IO.File]::WriteAllText($last, $chosen, (New-Object System.Text.UTF8Encoding($false)))
 
-# СЃРѕР·РґР°С‘Рј/РѕР±РЅРѕРІР»СЏРµРј РґР¶Р°РЅРєС€РЅ ROOT\photos -> РІС‹Р±СЂР°РЅРЅР°СЏ Р±Р°Р·Р° Р»РѕРєР°Р»СЊРЅРѕСЃС‚РµР№
-$rootPhotos = Join-Path $root "photos"
-
-function New-Junction($Path,$Target){
-  try {
-    New-Item -ItemType Junction -Path $Path -Target $Target -Force | Out-Null
-    return $true
-  } catch {
-    return $false
-  }
-}
-
-if (Test-Path $rootPhotos) {
-  $it = Get-Item $rootPhotos -Force
-  if ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) {
-    Remove-Item $rootPhotos -Force
-  } else {
-    $isEmpty = -not (Get-ChildItem $rootPhotos -Force -Recurse -ErrorAction SilentlyContinue |
-                     Where-Object { -not $_.PSIsContainer } | Select-Object -First 1)
-    if ($isEmpty) {
-      Remove-Item $rootPhotos -Recurse -Force
-    } else {
-      $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-      Rename-Item $rootPhotos ($rootPhotos + "_backup_$stamp") -Force
-    }
-  }
-}
-
-if (-not (New-Junction -Path $rootPhotos -Target $chosen)) {
-  cmd /c "mklink /J ""$rootPhotos"" ""$chosen""" | Out-Null
-}
-
-# Р»РѕРіРёСЂСѓРµРј С„Р°РєС‚
+# Логируем факт (без всяких удалений/джанкшнов)
 $log = Join-Path $logs "choose_localities_last.log"
-$lines = @(
-  ("TS=" + (Get-Date)),
-  ("CHOSEN=" + $chosen),
-  ("ROOT_PHOTOS=" + $rootPhotos),
-  ("EXISTS_PNG=" + (Test-Path (Join-Path $chosen '*\png\*.png')))
-)
-$lines | Out-File -FilePath $log -Encoding utf8
+@(
+  "TS=$(Get-Date)",
+  "CHOSEN=$chosen"
+) | Out-File -FilePath $log -Encoding utf8
 
 if (-not $Silent) {
-  Write-Host "[OK] Localities base:" $chosen
-  Write-Host "[OK] Junction:" $rootPhotos "->" $chosen
+    Write-Host "[OK] Localities base:" $chosen
 }
 exit 0
