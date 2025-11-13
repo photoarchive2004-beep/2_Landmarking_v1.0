@@ -1,0 +1,8 @@
+﻿RUN_TS : 20251113_221153
+BASE   : G:\Research\Morphology\Photos\Phoxinus
+LOC    : balkh-alakol_Ayagoz_KZ_25
+PNG    : G:\Research\Morphology\Photos\Phoxinus\balkh-alakol_Ayagoz_KZ_25\png
+COMPILE: 0
+EXIT   : -1
+NEEDED : 
+
