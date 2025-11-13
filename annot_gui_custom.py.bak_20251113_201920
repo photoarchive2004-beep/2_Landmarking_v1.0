@@ -216,8 +216,8 @@ class AnnotGUI(tk.Tk):
         self.load_image(self.images[self.idx])
 
         # auto-scale fallback for first PNG
-        p0 = Path(self.images[0])
-        scale_must = p0.with_name(p0.stem + ".scale.csv")
+        first_png = Path(self.images[0]).name
+        scale_must = Path(self.images[0]).with_name(first_png + ".scale.csv")
         if not scale_must.exists():
             self.scale_mode = True
 
@@ -294,7 +294,7 @@ class AnnotGUI(tk.Tk):
         if self.scale_mode:
             if len(self.scale_pts) == 2:
                 p = Path(self.img_path)
-                scale_csv = p.with_name(p.stem + ".scale.csv")
+                scale_csv = p.with_name(p.name + ".scale.csv")
                 scale_csv.write_text(
                     f"{self.scale_pts[0][0]:.2f},{self.scale_pts[0][1]:.2f}\n{self.scale_pts[1][0]:.2f},{self.scale_pts[1][1]:.2f}\n",
                     encoding="utf-8",
@@ -735,19 +735,5 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception as e:
-        import traceback, time
-        from pathlib import Path
-        logp = Path(__file__).with_name("logs") / "annot_gui_last.log"
-        try:
-            logp.parent.mkdir(parents=True, exist_ok=True)
-            with open(logp, "a", encoding="utf-8") as f:
-                f.write(time.strftime("[%H:%M:%S] ") + "FATAL: " + repr(e) + "\n")
-                traceback.print_exc(file=f)
-        except Exception:
-            pass
-        raise
-
+    sys.exit(main())
 

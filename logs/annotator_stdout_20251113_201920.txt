@@ -1,0 +1,4 @@
+
+== GM Landmarking: Points Annotator v1.0 ==
+
+Enter localities root folder [default: D:\GM\photos]: 
