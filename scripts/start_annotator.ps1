@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$BasePath,
   [int]$Select = 0
 )
@@ -20,13 +20,13 @@ try {
   Set-Content -Path $lmFile -Value "16" -Encoding ASCII
 }
 
-# 1) Память пути
+# 1) РџР°РјСЏС‚СЊ РїСѓС‚Рё
 $lastBaseFile = Join-Path $cfg "last_base.txt"
 $init = $BasePath
 if (-not $init -and (Test-Path $lastBaseFile)) { $init = Get-Content $lastBaseFile -Raw }
 if (-not $init -or -not (Test-Path $init)) { $init = Join-Path $root "photos" }
 
-# 2) Диалог выбора папки
+# 2) Р”РёР°Р»РѕРі РІС‹Р±РѕСЂР° РїР°РїРєРё
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = "Choose localities root (folder with <locality>\png)"
@@ -40,7 +40,7 @@ if ($res -ne [System.Windows.Forms.DialogResult]::OK) {
 $base = $dlg.SelectedPath
 Set-Content -Encoding UTF8 -NoNewline -Path $lastBaseFile -Value $base
 
-# 3) Локальности
+# 3) Р›РѕРєР°Р»СЊРЅРѕСЃС‚Рё
 $locs = Get-ChildItem -LiteralPath $base -Directory | ForEach-Object {
   $pngDir = Join-Path $_.FullName "png"
   if (Test-Path $pngDir) {
@@ -65,7 +65,7 @@ if (-not $locs -or $locs.Count -eq 0) {
   exit 2
 }
 
-# 4) Меню (если не задан Select)
+# 4) РњРµРЅСЋ (РµСЃР»Рё РЅРµ Р·Р°РґР°РЅ Select)
 $sel = $Select
 if ($sel -lt 1 -or $sel -gt $locs.Count) {
   Write-Host ""
@@ -89,19 +89,18 @@ $chosen = $locs[$sel-1]
 $pngDir = $chosen.PngDir
 
 # 5) Python exe
-$py = Join-Path $tool ".venv_lm\Scripts\python.exe"
-$pyArgs = @()
-if (!(Test-Path $py)) {
-  if (Get-Command py -ErrorAction SilentlyContinue) { $py = "py"; $pyArgs = @("-3") }
+$py = Join-Path $tool ".venv_lm311\Scripts\python.exe"
+if (!(Test-Path $py)) { $py = Join-Path $tool ".venv_lm\Scripts\python.exe" }
+if (!(Test-Path $py)) { if (Get-Command py -ErrorAction SilentlyContinue) { $py="py"; $pyArgs=@("-3") } else { $py="python" } }
   else { $py = "python" }
 }
 
-# 6) Запуск GUI через PowerShell &, чтобы аргументы с пробелами передались правильно
+# 6) Р—Р°РїСѓСЃРє GUI С‡РµСЂРµР· PowerShell &, С‡С‚РѕР±С‹ Р°СЂРіСѓРјРµРЅС‚С‹ СЃ РїСЂРѕР±РµР»Р°РјРё РїРµСЂРµРґР°Р»РёСЃСЊ РїСЂР°РІРёР»СЊРЅРѕ
 $script = Join-Path $tool "annot_gui_custom.py"
 $stdout = Join-Path $logs ("launcher_stdout_{0}.txt" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
 $stderr = Join-Path $logs ("launcher_stderr_{0}.txt" -f (Get-Date -Format 'yyyyMMdd_HHmmss'))
 
-# захватим вывод в файлы
+# Р·Р°С…РІР°С‚РёРј РІС‹РІРѕРґ РІ С„Р°Р№Р»С‹
 $sw = [Diagnostics.Stopwatch]::StartNew()
 & $py @pyArgs $script "--root" $root "--images" $pngDir 1> $stdout 2> $stderr
 $exit = $LASTEXITCODE
