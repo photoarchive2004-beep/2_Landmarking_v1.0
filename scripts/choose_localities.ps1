@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Title = "Choose LOCALITIES base (folder with <locality>\\png)",
   [switch]$Silent
 )
@@ -12,17 +12,17 @@ $logs = Join-Path $tool "logs"
 $last = Join-Path $cfg  "last_base.txt"
 New-Item -ItemType Directory -Force -Path $cfg,$logs | Out-Null
 
-# стартовый путь
+# СЃС‚Р°СЂС‚РѕРІС‹Р№ РїСѓС‚СЊ
 $init = ""
 if (Test-Path $last) {
   try { $init = Get-Content $last -Raw } catch {}
 }
 if (-not $init) {
   $def = Join-Path $root "photos"
-  $init = (Test-Path $def) ? $def : $root
+  if (Test-Path $def) { $init = $def } else { $init = $root }
 }
 
-# диалог выбора папки
+# РґРёР°Р»РѕРі РІС‹Р±РѕСЂР° РїР°РїРєРё
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = $Title
 $dlg.SelectedPath = $init
@@ -35,10 +35,10 @@ if ($res -ne [System.Windows.Forms.DialogResult]::OK) {
 
 $chosen = $dlg.SelectedPath
 
-# запомним выбранную базу
+# Р·Р°РїРѕРјРЅРёРј РІС‹Р±СЂР°РЅРЅСѓСЋ Р±Р°Р·Сѓ
 [System.IO.File]::WriteAllText($last, $chosen, (New-Object System.Text.UTF8Encoding($false)))
 
-# создаём/обновляем джанкшн ROOT\photos -> выбранная база локальностей
+# СЃРѕР·РґР°С‘Рј/РѕР±РЅРѕРІР»СЏРµРј РґР¶Р°РЅРєС€РЅ ROOT\photos -> РІС‹Р±СЂР°РЅРЅР°СЏ Р±Р°Р·Р° Р»РѕРєР°Р»СЊРЅРѕСЃС‚РµР№
 $rootPhotos = Join-Path $root "photos"
 
 function New-Junction($Path,$Target){
@@ -70,7 +70,7 @@ if (-not (New-Junction -Path $rootPhotos -Target $chosen)) {
   cmd /c "mklink /J ""$rootPhotos"" ""$chosen""" | Out-Null
 }
 
-# логируем факт
+# Р»РѕРіРёСЂСѓРµРј С„Р°РєС‚
 $log = Join-Path $logs "choose_localities_last.log"
 $lines = @(
   ("TS=" + (Get-Date)),
