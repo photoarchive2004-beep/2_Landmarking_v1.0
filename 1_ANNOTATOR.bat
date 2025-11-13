@@ -11,7 +11,7 @@ set "LOG_DIR=%TOOL_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
 rem ---- Localities base picker (Windows dialog) ----
-powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOL_DIR%\scripts\choose_localities.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\choose_localities.ps1"
 if errorlevel 1 (
   echo [ERR] Localities base not selected. Exiting.>>"%LOG_DIR%\annotator_last.log"
   echo [ERR] Localities base not selected. Exiting.
@@ -94,3 +94,4 @@ if not "!RC!"=="0" (
   pause
 )
 exit /b 0
+
