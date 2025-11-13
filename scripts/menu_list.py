@@ -1,4 +1,4 @@
-import os, sys
+﻿import os, sys
 
 HERE = os.path.dirname(__file__)
 def default_root():
@@ -78,7 +78,18 @@ def main():
     a = parse_args(sys.argv[1:])
     ROOT = os.path.abspath(a["root"]) if a["root"] else default_root()
     TOOL = os.path.join(ROOT, "tools", "2_Landmarking_v1.0")
-    PHOTOS = os.path.join(ROOT, "photos")
+    CFG = os.path.abspath(os.path.join(HERE, "..", "cfg", "last_base.txt"))
+    _base = None
+    if os.path.isfile(CFG):
+        try:
+            with open(CFG, "r", encoding="utf-8") as f:
+                _base = f.read().strip()
+        except OSError:
+            _base = None
+    if _base:
+        PHOTOS = _base
+    else:
+        PHOTOS = os.path.join(ROOT, "photos")
     LM_FILE = os.path.join(TOOL, "LM_number.txt")
     N = read_npoints(LM_FILE)
     locs = collect_localities(PHOTOS)

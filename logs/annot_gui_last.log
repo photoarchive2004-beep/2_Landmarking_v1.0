@@ -123,3 +123,5 @@
 [23:54:46] [SAVE] img_001415.csv pts=16 OK
 [23:54:46] [LOAD] img_002416.png pts=16/16 scale=False
 [23:54:52] [SAVE] img_002416.csv pts=16 OK
+[00:04:41] [LOAD] img_001415.png pts=16/16 scale=False
+[00:04:44] [SAVE] img_001415.csv pts=16 OK
