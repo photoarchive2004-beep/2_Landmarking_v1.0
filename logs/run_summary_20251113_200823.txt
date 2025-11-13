@@ -1,0 +1,3 @@
+﻿RUN_TS   : 20251113_200823
+EXIT_CODE: -1
+NOTE     : removed UTF-8 BOM from 1_ANNOTATOR.bat
