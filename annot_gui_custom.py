@@ -1,4 +1,4 @@
-﻿import sys, argparse, shutil, time
+import sys, argparse, shutil, time
 from pathlib import Path
 from PIL import Image, ImageTk
 import tkinter as tk
@@ -107,19 +107,6 @@ def gpa_align(shapes, iters=10):
 
 # ---------- GUI ----------
 class AnnotGUI(tk.Tk):
-    def _qc_click(self, *args):
-        \"\"\"Safe Quick Check click handler (placeholder).
-        Keeps GUI from crashing if QC not yet implemented.
-        \"\"\"
-        try:
-            if hasattr(self, "quick_check"):
-                return self.quick_check()
-        except Exception:
-            return None
-
-    # Backward-compatible alias expected by old UI wiring
-    def toggle_qc(self, *args):
-        return self._qc_click(*args)
     def __init__(self, root, png_dir, n_points, start_from=None, scale_wizard=False):
         super().__init__()
         self.title("GM Points Annotator - Custom")
@@ -174,7 +161,7 @@ class AnnotGUI(tk.Tk):
         self.qcTolEntry = tk.Entry(top, width=5, textvariable=self.qcTolVar, justify="center")
         self.qcTolEntry.pack(side=tk.RIGHT, padx=(4,2), pady=4)
 
-        self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self._qc_click)
+        self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self.toggle_qc)
         self.btnQC.pack(side=tk.RIGHT, padx=8, pady=4)
 
         self.btnScale = tk.Button(top, text="Save scale (Enter)", command=lambda: self.finish_scale(True))
@@ -217,7 +204,7 @@ class AnnotGUI(tk.Tk):
         self.bind("<Control-f>", self.search_dialog)
         self.bind("f", self.search_dialog)
         self.bind("<Control-s>", self.ctrl_save)
-        self.bind("<F9>", self._qc_click)
+        self.bind("<F9>", self.toggle_qc)
         self.bind("x", self.hot_move_to_bad)
         self.bind("X", self.hot_move_to_bad)
         self.bind("<Control-d>", self.delete_near_force)
@@ -229,8 +216,8 @@ class AnnotGUI(tk.Tk):
         self.load_image(self.images[self.idx])
 
         # auto-scale fallback for first PNG
-        p0 = Path(self.images[0])
-        scale_must = p0.with_name(p0.stem + ".scale.csv")
+        first_png = Path(self.images[0]).name
+        scale_must = Path(self.images[0]).with_name(first_png + ".scale.csv")
         if not scale_must.exists():
             self.scale_mode = True
 
@@ -307,7 +294,7 @@ class AnnotGUI(tk.Tk):
         if self.scale_mode:
             if len(self.scale_pts) == 2:
                 p = Path(self.img_path)
-                scale_csv = p.with_name(p.stem + ".scale.csv")
+                scale_csv = p.with_name(p.name + ".scale.csv")
                 scale_csv.write_text(
                     f"{self.scale_pts[0][0]:.2f},{self.scale_pts[0][1]:.2f}\n{self.scale_pts[1][0]:.2f},{self.scale_pts[1][1]:.2f}\n",
                     encoding="utf-8",
@@ -566,7 +553,6 @@ class AnnotGUI(tk.Tk):
     def on_key_up(self, e):
         pass
 
-    
     def ctrl_save(self, *_):
         self.save_current()
 
@@ -640,28 +626,28 @@ class AnnotGUI(tk.Tk):
             encoding="utf-8",
         )
 
-def _qc_refresh_and_locate(self):
-    self.run_qc()
-    if not self.qc_list:
-        self.qc_mode = False
+    def _qc_refresh_and_locate(self):
+        self.run_qc()
+        if not self.qc_list:
+            self.qc_mode = False
+            self.apply_banner()
+            messagebox.showinfo("QC finished", "No suspicious frames left.")
+            self.redraw("hq")
+            return False
+        idxs = [i for i, _ in self.qc_list]
+        if self.idx in idxs:
+            self.qc_pos = idxs.index(self.idx)
+        else:
+            pos = 0
+            for p, i in enumerate(idxs):
+                if i >= self.idx:
+                    pos = p
+                    break
+            self.qc_pos = pos
+            self.idx = idxs[self.qc_pos]
+            self.load_image(self.images[self.idx])
         self.apply_banner()
-        messagebox.showinfo("QC finished", "No suspicious frames left.")
-        self.redraw("hq")
-        return False
-    idxs = [i for i, _ in self.qc_list]
-    if self.idx in idxs:
-        self.qc_pos = idxs.index(self.idx)
-    else:
-        pos = 0
-        for p, i in enumerate(idxs):
-            if i >= self.idx:
-                pos = p
-                break
-        self.qc_pos = pos
-        self.idx = idxs[self.qc_pos]
-        self.load_image(self.images[self.idx])
-    self.apply_banner()
-    return True
+        return True
 
     def toggle_qc(self, *_):
         if self.scale_mode:
@@ -751,24 +737,4 @@ def main():
     return 0
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception as e:
-        import traceback, time
-        from pathlib import Path
-        logp = Path(__file__).with_name("logs") / "annot_gui_last.log"
-        try:
-            logp.parent.mkdir(parents=True, exist_ok=True)
-            with open(logp, "a", encoding="utf-8") as f:
-                f.write(time.strftime("[%H:%M:%S] ") + "FATAL: " + repr(e) + "\n")
-                traceback.print_exc(file=f)
-        except Exception:
-            pass
-        raise
-
-
-
-
-
-
-
+    sys.exit(main())
