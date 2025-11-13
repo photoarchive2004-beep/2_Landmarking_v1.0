@@ -647,9 +647,7 @@ def _qc_refresh_and_locate(self):
         self.idx = idxs[self.qc_pos]
         self.load_image(self.images[self.idx])
     self.apply_banner()
-    return True
-
-    def toggle_qc(self, *_):
+    return True    def toggle_qc(self, *_):
         if self.scale_mode:
             messagebox.showinfo("Scale first", "Finish Scale Wizard first.")
             return
@@ -751,7 +749,6 @@ if __name__ == "__main__":
         except Exception:
             pass
         raise
-
 
 
 
