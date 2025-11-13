@@ -1,1 +1,12 @@
 [02:48:17] [SAVE] img_010424.csv pts=16 OK
+[03:03:55] [LOAD] img_002416.png pts=16/16 scale=False
+[03:04:02] [SAVE] img_002416.csv pts=16 OK
+[03:04:02] [LOAD] img_004418.png pts=16/16 scale=False
+[03:04:10] [SAVE] img_004418.csv pts=16 OK
+[03:04:10] [LOAD] img_005419.png pts=16/16 scale=False
+[03:05:02] [LOAD] img_010424.png pts=16/16 scale=False
+[03:05:02] [LOAD] img_010424.png pts=16/16 scale=False
+[03:05:08] [SAVE] img_010424.csv pts=16 OK
+[03:05:09] [LOAD] img_010424.png pts=16/16 scale=False
+[03:05:43] [LOAD] img_010424.png pts=16/16 scale=False
+[03:06:17] [SAVE] img_010424.csv pts=16 OK
