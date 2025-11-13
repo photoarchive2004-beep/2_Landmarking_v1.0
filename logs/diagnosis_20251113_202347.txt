@@ -1,0 +1,75 @@
+﻿=== TAIL @ 20251113_200823 ===
+
+--- annotator_combined_20251113_200823.txt ---
+
+== GM Landmarking: Points Annotator v1.0 ==
+
+
+--- annotator_stderr_20251113_200823.txt ---
+
+--- annotator_stdout_20251113_200823.txt ---
+
+== GM Landmarking: Points Annotator v1.0 ==
+
+
+--- annot_gui_last_20251113_200823.log ---
+[16:35:15] [LOAD] img_015429.png pts=16/17 scale=False
+[16:35:20] [SAVE] img_015429.csv pts=17 OK
+[16:35:20] [LOAD] img_016430.png pts=0/17 scale=False
+[16:35:24] [SAVE] img_016430.csv pts=1 OK
+[16:35:24] [LOAD] img_015429.png pts=17/17 scale=False
+[16:35:30] [SAVE] img_015429.csv pts=17 OK
+[16:35:30] [LOAD] img_016430.png pts=1/17 scale=False
+[16:36:10] [SAVE] img_016430.csv pts=17 OK
+[16:36:10] [LOAD] img_017431.png pts=0/17 scale=False
+[16:36:42] [SAVE] img_017431.csv pts=17 OK
+[16:36:43] [LOAD] img_018432.png pts=0/17 scale=False
+[16:37:26] [SAVE] img_018432.csv pts=16 OK
+[16:37:26] [LOAD] img_019433.png pts=0/17 scale=False
+[16:38:07] [SAVE] img_019433.csv pts=16 OK
+[16:38:07] [LOAD] img_020434.png pts=0/17 scale=False
+[16:38:52] [SAVE] img_020434.csv pts=16 OK
+[16:38:52] [LOAD] img_021435.png pts=0/17 scale=False
+[16:39:35] [SAVE] img_021435.csv pts=17 OK
+[16:39:35] [LOAD] img_020434.png pts=16/17 scale=False
+[16:39:42] [SAVE] img_020434.csv pts=17 OK
+[16:39:42] [LOAD] img_019433.png pts=16/17 scale=False
+[16:39:45] [SAVE] img_019433.csv pts=17 OK
+[16:39:45] [LOAD] img_018432.png pts=16/17 scale=False
+[16:39:48] [SAVE] img_018432.csv pts=17 OK
+[16:39:48] [LOAD] img_017431.png pts=17/17 scale=False
+[16:39:49] [SAVE] img_017431.csv pts=17 OK
+[16:39:49] [LOAD] img_016430.png pts=17/17 scale=False
+[16:39:50] [SAVE] img_016430.csv pts=17 OK
+[16:39:50] [LOAD] img_015429.png pts=17/17 scale=False
+[16:39:50] [SAVE] img_015429.csv pts=17 OK
+[16:39:50] [LOAD] img_014428.png pts=17/17 scale=False
+[16:39:50] [SAVE] img_014428.csv pts=17 OK
+[16:39:50] [LOAD] img_013427.png pts=17/17 scale=False
+[16:39:50] [SAVE] img_013427.csv pts=17 OK
+[16:39:50] [LOAD] img_012426.png pts=17/17 scale=False
+[16:39:53] [LOAD] img_014428.png pts=17/17 scale=False
+[16:39:53] [LOAD] img_014428.png pts=17/17 scale=False
+[16:39:57] [SAVE] img_014428.csv pts=17 OK
+[16:39:57] [LOAD] img_015429.png pts=17/17 scale=False
+[16:40:03] [SAVE] img_015429.csv pts=17 OK
+[16:40:03] [LOAD] img_017431.png pts=17/17 scale=False
+[16:40:05] [SAVE] img_017431.csv pts=17 OK
+[16:40:06] [LOAD] img_018432.png pts=17/17 scale=False
+[16:40:09] [SAVE] img_018432.csv pts=17 OK
+[16:40:09] [LOAD] img_020434.png pts=17/17 scale=False
+[16:40:12] [SAVE] img_020434.csv pts=17 OK
+[16:40:12] [LOAD] img_004418.png pts=17/17 scale=False
+[16:40:14] [SAVE] img_004418.csv pts=17 OK
+[16:40:14] [LOAD] img_010424.png pts=17/17 scale=False
+[16:40:16] [SAVE] img_010424.csv pts=17 OK
+[16:40:16] [LOAD] img_014428.png pts=17/17 scale=False
+[16:40:19] [SAVE] img_014428.csv pts=17 OK
+[16:40:19] [LOAD] img_015429.png pts=17/17 scale=False
+[16:40:21] [SAVE] img_015429.csv pts=17 OK
+[16:40:22] [LOAD] img_017431.png pts=17/17 scale=False
+[16:40:34] [LOAD] img_017431.png pts=17/17 scale=False
+[16:40:48] [LOAD] img_017431.png pts=17/17 scale=False
+[16:41:01] [SAVE] img_017431.csv pts=17 OK
+[16:41:01] [LOAD] img_018432.png pts=17/17 scale=False
+[16:41:06] [SAVE] img_018432.csv pts=17 OK
