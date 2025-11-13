@@ -4,3 +4,9 @@ LOC=balkh-alakol_Ayagoz_KZ_25
 PNG=G:\Research\Morphology\Photos\Phoxinus\balkh-alakol_Ayagoz_KZ_25\png
 EXIT=1
 
+RUN_TS=13.11.2025 21:41:03
+BASE=G:\Research\Morphology\Photos\Phoxinus
+LOC=balkh-alakol_Ayagoz_KZ_25
+PNG=G:\Research\Morphology\Photos\Phoxinus\balkh-alakol_Ayagoz_KZ_25\png
+EXIT=1
+
