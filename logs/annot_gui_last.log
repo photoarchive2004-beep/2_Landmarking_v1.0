@@ -231,3 +231,20 @@ Traceback (most recent call last):
   File "<frozen importlib._bootstrap_external>", line 1073, in get_code
   File "<frozen importlib._bootstrap_external>", line 1130, in get_data
 FileNotFoundError: [Errno 2] No such file or directory: 'D:\\GM\\tools\\annot_gui_custom.py'
+[22:29:50] STAGE0: import module
+[22:29:50] STAGE1: module loaded
+[22:29:50] FATAL: AttributeError("'_tkinter.tkapp' object has no attribute 'toggle_qc'")
+Traceback (most recent call last):
+  File "D:\GM\tools\2_Landmarking_v1.0\run_gui_wrapper.py", line 15, in <module>
+    rc=mod.main() if hasattr(mod,'main') else 0
+       ^^^^^^^^^^
+  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 736, in main
+    app = AnnotGUI(a.root, a.images, N, start_from=a.start_from, scale_wizard=a.scale_wizard)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\GM\tools\2_Landmarking_v1.0\annot_gui_custom.py", line 164, in __init__
+    self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self.toggle_qc)
+                                                                 ^^^^^^^^^^^^^^
+  File "D:\Users\artae\AppData\Local\Programs\Python\Python311\Lib\tkinter\__init__.py", line 2410, in __getattr__
+    return getattr(self.tk, attr)
+           ^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: '_tkinter.tkapp' object has no attribute 'toggle_qc'

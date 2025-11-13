@@ -8,7 +8,7 @@ def w(s):
 try:
     w('STAGE0: import module')
     import importlib.util
-    spec=importlib.util.spec_from_file_location('annot_gui_custom', str(HERE.parent/'annot_gui_custom.py'))
+    spec=importlib.util.spec_from_file_location('annot_gui_custom', str(HERE/'annot_gui_custom.py'))
     mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     w('STAGE1: module loaded')
     sys.argv=['annot_gui_custom.py','--root',r'D:\GM','--images',r'G:\Research\Morphology\Photos\Phoxinus\balkh-alakol_Ayagoz_KZ_25\png']
@@ -19,4 +19,5 @@ except SystemExit as e:
     w(f'EXIT(SystemExit) code={e.code}'); raise
 except Exception as e:
     w('FATAL: '+repr(e)); traceback.print_exc(file=open(gl,'a',encoding='utf-8')); raise
+
 
