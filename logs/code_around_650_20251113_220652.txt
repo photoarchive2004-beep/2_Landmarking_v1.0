@@ -1,0 +1,31 @@
+﻿        self.redraw("hq")
+        return False
+    idxs = [i for i, _ in self.qc_list]
+    if self.idx in idxs:
+        self.qc_pos = idxs.index(self.idx)
+    else:
+        pos = 0
+        for p, i in enumerate(idxs):
+            if i >= self.idx:
+                pos = p
+                break
+        self.qc_pos = pos
+        self.idx = idxs[self.qc_pos]
+        self.load_image(self.images[self.idx])
+    self.apply_banner()
+    return True    def toggle_qc(self, *_):
+        if self.scale_mode:
+            messagebox.showinfo("Scale first", "Finish Scale Wizard first.")
+            return
+        if not self.qc_mode:
+            if not self._qc_refresh_and_locate():
+                return
+            self.qc_mode = True
+            self.apply_banner()
+            self.load_image(self.images[self.idx])
+        else:
+            self.qc_mode = False
+            self.apply_banner()
+            self.redraw("hq")
+
+    # navigation
