@@ -553,7 +553,6 @@ class AnnotGUI(tk.Tk):
     def on_key_up(self, e):
         pass
 
-    
     def ctrl_save(self, *_):
         self.save_current()
 
@@ -752,7 +751,6 @@ if __name__ == "__main__":
         except Exception:
             pass
         raise
-
 
 
 
