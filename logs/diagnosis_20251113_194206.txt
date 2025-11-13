@@ -1,0 +1,14 @@
+﻿DIAG: Unknown
+=== DIAG for TS=20251113_194206 ===
+
+--- tail: compile_20251113_194206.txt ---
+
+--- tail: annotator_combined_20251113_194206.txt ---
+
+D:\GM\tools\2_Landmarking_v1.0>я¬¬@echo off 
+
+--- tail: annotator_stderr_20251113_194206.txt ---
+
+--- tail: annotator_stdout_20251113_194206.txt ---
+
+D:\GM\tools\2_Landmarking_v1.0>я╗┐@echo off 
