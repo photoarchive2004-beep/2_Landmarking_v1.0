@@ -1,4 +1,4 @@
-﻿import sys, argparse, shutil, time
+import sys, argparse, shutil, time
 from pathlib import Path
 from PIL import Image, ImageTk
 import tkinter as tk
@@ -626,28 +626,30 @@ class AnnotGUI(tk.Tk):
             encoding="utf-8",
         )
 
-def _qc_refresh_and_locate(self):
-    self.run_qc()
-    if not self.qc_list:
-        self.qc_mode = False
+    def _qc_refresh_and_locate(self):
+        self.run_qc()
+        if not self.qc_list:
+            self.qc_mode = False
+            self.apply_banner()
+            messagebox.showinfo("QC finished", "No suspicious frames left.")
+            self.redraw("hq")
+            return False
+        idxs = [i for i, _ in self.qc_list]
+        if self.idx in idxs:
+            self.qc_pos = idxs.index(self.idx)
+        else:
+            pos = 0
+            for p, i in enumerate(idxs):
+                if i >= self.idx:
+                    pos = p
+                    break
+            self.qc_pos = pos
+            self.idx = idxs[self.qc_pos]
+            self.load_image(self.images[self.idx])
         self.apply_banner()
-        messagebox.showinfo("QC finished", "No suspicious frames left.")
-        self.redraw("hq")
-        return False
-    idxs = [i for i, _ in self.qc_list]
-    if self.idx in idxs:
-        self.qc_pos = idxs.index(self.idx)
-    else:
-        pos = 0
-        for p, i in enumerate(idxs):
-            if i >= self.idx:
-                pos = p
-                break
-        self.qc_pos = pos
-        self.idx = idxs[self.qc_pos]
-        self.load_image(self.images[self.idx])
-    self.apply_banner()
-    return True    def toggle_qc(self, *_):
+        return True
+
+    def toggle_qc(self, *_):
         if self.scale_mode:
             messagebox.showinfo("Scale first", "Finish Scale Wizard first.")
             return
