@@ -107,19 +107,6 @@ def gpa_align(shapes, iters=10):
 
 # ---------- GUI ----------
 class AnnotGUI(tk.Tk):
-    def _qc_click(self, *args):
-        \"\"\"Safe Quick Check click handler (placeholder).
-        Keeps GUI from crashing if QC not yet implemented.
-        \"\"\"
-        try:
-            if hasattr(self, "quick_check"):
-                return self.quick_check()
-        except Exception:
-            return None
-
-    # Backward-compatible alias expected by old UI wiring
-    def toggle_qc(self, *args):
-        return self._qc_click(*args)
     def __init__(self, root, png_dir, n_points, start_from=None, scale_wizard=False):
         super().__init__()
         self.title("GM Points Annotator - Custom")
@@ -174,7 +161,7 @@ class AnnotGUI(tk.Tk):
         self.qcTolEntry = tk.Entry(top, width=5, textvariable=self.qcTolVar, justify="center")
         self.qcTolEntry.pack(side=tk.RIGHT, padx=(4,2), pady=4)
 
-        self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self._qc_click)
+        self.btnQC = tk.Button(top, text="Quick Check (F9)", command=self.toggle_qc)
         self.btnQC.pack(side=tk.RIGHT, padx=8, pady=4)
 
         self.btnScale = tk.Button(top, text="Save scale (Enter)", command=lambda: self.finish_scale(True))
@@ -217,7 +204,7 @@ class AnnotGUI(tk.Tk):
         self.bind("<Control-f>", self.search_dialog)
         self.bind("f", self.search_dialog)
         self.bind("<Control-s>", self.ctrl_save)
-        self.bind("<F9>", self._qc_click)
+        self.bind("<F9>", self.toggle_qc)
         self.bind("x", self.hot_move_to_bad)
         self.bind("X", self.hot_move_to_bad)
         self.bind("<Control-d>", self.delete_near_force)
@@ -765,7 +752,6 @@ if __name__ == "__main__":
         except Exception:
             pass
         raise
-
 
 
 
