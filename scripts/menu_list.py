@@ -108,7 +108,6 @@ def main():
             if total and done == total and not has_any_scale(png_dir):
                 line += "  Set Scale!"
             print(line)
-        print("Enter a number to open locality, or Q to quit:")
         return 0
 
     if a["mode"] == "pick":
@@ -121,3 +120,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+

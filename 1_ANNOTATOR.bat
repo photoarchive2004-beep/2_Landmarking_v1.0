@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
@@ -11,7 +11,7 @@ set "LOG_DIR=%TOOL_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
 rem ---- Localities base picker (Windows dialog) ----
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\choose_localities.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\choose_localities.ps1" -Silent
 if errorlevel 1 (
   echo [WARN] Localities base picker failed or was cancelled. Using existing "%PHOTOS_DIR%".>>"%LOG_DIR%\annotator_last.log"
   echo [WARN] Localities base picker failed or was cancelled. Using existing "%PHOTOS_DIR%".
@@ -93,5 +93,6 @@ if not "!RC!"=="0" (
   pause
 )
 exit /b 0
+
 
 
