@@ -1,5 +1,5 @@
 param(
-  [string]$Title = "Choose LOCALITIES base (folder with <locality>\png)",
+  [string]$Title = "Choose LOCALITIES base (folder with <locality>\\png)",
   [switch]$Silent
 )
 $ErrorActionPreference = "Stop"
@@ -12,49 +12,65 @@ $logs = Join-Path $tool "logs"
 $last = Join-Path $cfg  "last_base.txt"
 New-Item -ItemType Directory -Force -Path $cfg,$logs | Out-Null
 
-# начальный путь из last_base.txt или ...\GM\photos (если уже есть)
+# стартовый путь
 $init = ""
-if (Test-Path $last) { try { $init = Get-Content $last -Raw } catch {} }
+if (Test-Path $last) {
+  try { $init = Get-Content $last -Raw } catch {}
+}
 if (-not $init) {
   $def = Join-Path $root "photos"
   $init = (Test-Path $def) ? $def : $root
 }
 
-# визуальный диалог выбора
+# диалог выбора папки
 $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
 $dlg.Description = $Title
 $dlg.SelectedPath = $init
 $dlg.ShowNewFolderButton = $false
 $res = $dlg.ShowDialog()
-if ($res -ne [System.Windows.Forms.DialogResult]::OK) { if (-not $Silent) { Write-Host "[INFO] Cancelled" } ; exit 0 }
+if ($res -ne [System.Windows.Forms.DialogResult]::OK) {
+  if (-not $Silent) { Write-Host "[INFO] Localities base selection cancelled by user." }
+  exit 1
+}
 
 $chosen = $dlg.SelectedPath
 
-# запомнить выбранную базу локальностей
+# запомним выбранную базу
 [System.IO.File]::WriteAllText($last, $chosen, (New-Object System.Text.UTF8Encoding($false)))
 
-# создать/обновить джанкшн ROOT\photos -> выбранная папка
+# создаём/обновляем джанкшн ROOT\photos -> выбранная база локальностей
 $rootPhotos = Join-Path $root "photos"
+
 function New-Junction($Path,$Target){
-  try { New-Item -ItemType Junction -Path $Path -Target $Target -Force | Out-Null; return $true } catch { return $false }
+  try {
+    New-Item -ItemType Junction -Path $Path -Target $Target -Force | Out-Null
+    return $true
+  } catch {
+    return $false
+  }
 }
+
 if (Test-Path $rootPhotos) {
   $it = Get-Item $rootPhotos -Force
   if ($it.Attributes -band [IO.FileAttributes]::ReparsePoint) {
     Remove-Item $rootPhotos -Force
   } else {
-    $isEmpty = -not (Get-ChildItem $rootPhotos -Force -Recurse -ErrorAction SilentlyContinue | Where-Object { -not $_.PSIsContainer } | Select-Object -First 1)
-    if ($isEmpty) { Remove-Item $rootPhotos -Recurse -Force } else {
+    $isEmpty = -not (Get-ChildItem $rootPhotos -Force -Recurse -ErrorAction SilentlyContinue |
+                     Where-Object { -not $_.PSIsContainer } | Select-Object -First 1)
+    if ($isEmpty) {
+      Remove-Item $rootPhotos -Recurse -Force
+    } else {
       $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
       Rename-Item $rootPhotos ($rootPhotos + "_backup_$stamp") -Force
     }
   }
 }
+
 if (-not (New-Junction -Path $rootPhotos -Target $chosen)) {
   cmd /c "mklink /J ""$rootPhotos"" ""$chosen""" | Out-Null
 }
 
-# лог на всякий случай
+# логируем факт
 $log = Join-Path $logs "choose_localities_last.log"
 $lines = @(
   ("TS=" + (Get-Date)),
@@ -68,3 +84,4 @@ if (-not $Silent) {
   Write-Host "[OK] Localities base:" $chosen
   Write-Host "[OK] Junction:" $rootPhotos "->" $chosen
 }
+exit 0

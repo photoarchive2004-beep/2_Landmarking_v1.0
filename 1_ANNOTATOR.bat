@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
@@ -8,7 +8,16 @@ for %%I in ("%HERE%\..\..") do set "ROOT=%%~fI"
 set "TOOL_DIR=%ROOT%\tools\2_Landmarking_v1.0"
 set "PHOTOS_DIR=%ROOT%\photos"
 set "LOG_DIR=%TOOL_DIR%\logs"
-if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+
+rem ---- Localities base picker (Windows dialog) ----
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOL_DIR%\scripts\choose_localities.ps1"
+if errorlevel 1 (
+  echo [ERR] Localities base not selected. Exiting.>>"%LOG_DIR%\annotator_last.log"
+  echo [ERR] Localities base not selected. Exiting.
+  goto :EOF
+)
+
 
 rem ---- Python resolver ----
 set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
