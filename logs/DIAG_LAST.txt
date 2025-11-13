@@ -1,15 +1,39 @@
-﻿=== DIAG NOW ===
+﻿
+--- launcher_stderr_20251113_222558.txt ---
 
---- launcher_stderr_20251113_215045.txt ---
+--- launcher_stdout_20251113_222558.txt ---
 
---- launcher_stdout_20251113_215045.txt ---
-
---- annotator_combined_test.txt ---
-
-== GM Landmarking: Points Annotator v1.0 ==
-[BASE] G:\Research\Morphology\Photos\Phoxinus
-
---- annot_gui_last_20251113_201212.log ---
+--- annot_gui_last.log ---
+[12:44:39] [LOAD] img_036471.png pts=0/16 scale=False
+[12:44:40] [LOAD] img_037472.png pts=0/16 scale=False
+[12:44:45] [LOAD] img_034469 (2).png pts=16/16 scale=False
+[12:44:47] [SAVE] img_034469 (2).csv pts=16 OK
+[12:45:48] [LOAD] img_034469.png pts=16/16 scale=False
+[12:46:06] [SAVE] img_034469.csv pts=16 OK
+[13:39:02] [LOAD] img_001415.png pts=16/16 scale=False
+[13:54:59] [SAVE] img_001415.csv pts=16 OK
+[13:55:00] [LOAD] img_002416.png pts=16/16 scale=False
+[13:55:00] [SAVE] img_002416.csv pts=16 OK
+[13:55:00] [LOAD] img_004418.png pts=16/16 scale=False
+[13:55:05] [SAVE] img_004418.csv pts=16 OK
+[13:55:05] [LOAD] img_005419.png pts=16/16 scale=False
+[13:55:06] [SAVE] img_005419.csv pts=16 OK
+[13:55:06] [LOAD] img_006420.png pts=16/16 scale=False
+[13:55:08] [SAVE] img_006420.csv pts=16 OK
+[13:55:08] [LOAD] img_007421.png pts=16/16 scale=False
+[13:55:14] [SAVE] img_007421.csv pts=16 OK
+[13:55:14] [LOAD] img_008422.png pts=16/16 scale=False
+[13:55:16] [SAVE] img_008422.csv pts=16 OK
+[13:55:16] [LOAD] img_009423.png pts=16/16 scale=False
+[13:55:20] [SAVE] img_009423.csv pts=16 OK
+[13:55:20] [LOAD] img_010424.png pts=16/16 scale=False
+[16:34:03] [SAVE] img_010424.csv pts=16 OK
+[16:34:27] [LOAD] img_001415.png pts=16/17 scale=False
+[16:34:31] [SAVE] img_001415.csv pts=17 OK
+[16:34:32] [LOAD] img_002416.png pts=16/17 scale=False
+[16:34:36] [SAVE] img_002416.csv pts=17 OK
+[16:34:36] [LOAD] img_004418.png pts=16/17 scale=False
+[16:34:41] [SAVE] img_004418.csv pts=17 OK
 [16:34:41] [LOAD] img_005419.png pts=16/17 scale=False
 [16:34:44] [SAVE] img_005419.csv pts=17 OK
 [16:34:45] [LOAD] img_006420.png pts=16/17 scale=False
@@ -90,3 +114,13 @@
 [16:41:01] [SAVE] img_017431.csv pts=17 OK
 [16:41:01] [LOAD] img_018432.png pts=17/17 scale=False
 [16:41:06] [SAVE] img_018432.csv pts=17 OK
+[22:25:58] STAGE0: import module
+[22:25:58] FATAL: FileNotFoundError(2, 'No such file or directory')
+Traceback (most recent call last):
+  File "D:\GM\tools\2_Landmarking_v1.0\run_gui_wrapper.py", line 12, in <module>
+    mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\GM\\tools\\annot_gui_custom.py'
