@@ -1,7 +1,7 @@
 ﻿import os,sys,time,traceback
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
-LOGS=(HERE.parent/'logs'); LOGS.mkdir(parents=True,exist_ok=True)
+LOGS=(HERE/'logs'); LOGS.mkdir(parents=True,exist_ok=True)
 gl=LOGS/'annot_gui_last.log'
 def w(s): 
     with open(gl,'a',encoding='utf-8') as f: f.write(time.strftime('[%H:%M:%S] ')+s+'\n')
@@ -19,3 +19,4 @@ except SystemExit as e:
     w(f'EXIT(SystemExit) code={e.code}'); raise
 except Exception as e:
     w('FATAL: '+repr(e)); traceback.print_exc(file=open(gl,'a',encoding='utf-8')); raise
+

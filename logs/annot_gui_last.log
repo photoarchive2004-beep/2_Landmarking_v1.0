@@ -221,3 +221,13 @@
 [16:41:01] [SAVE] img_017431.csv pts=17 OK
 [16:41:01] [LOAD] img_018432.png pts=17/17 scale=False
 [16:41:06] [SAVE] img_018432.csv pts=17 OK
+[22:25:58] STAGE0: import module
+[22:25:58] FATAL: FileNotFoundError(2, 'No such file or directory')
+Traceback (most recent call last):
+  File "D:\GM\tools\2_Landmarking_v1.0\run_gui_wrapper.py", line 12, in <module>
+    mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\GM\\tools\\annot_gui_custom.py'

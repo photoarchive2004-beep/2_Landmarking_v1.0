@@ -1,0 +1,19 @@
+[22:11:55] STAGE0: wrapper start
+[22:11:55] FATAL: FileNotFoundError(2, 'No such file or directory')
+Traceback (most recent call last):
+  File "D:\GM\tools\2_Landmarking_v1.0\run_gui_wrapper.py", line 20, in <module>
+    spec.loader.exec_module(mod)
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\GM\\tools\\annot_gui_custom.py'
+[22:14:19] STAGE0: import module
+[22:14:19] FATAL: FileNotFoundError(2, 'No such file or directory')
+Traceback (most recent call last):
+  File "D:\GM\tools\2_Landmarking_v1.0\run_gui_wrapper.py", line 12, in <module>
+    mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 936, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1073, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1130, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'D:\\GM\\tools\\annot_gui_custom.py'
