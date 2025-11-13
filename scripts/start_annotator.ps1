@@ -90,8 +90,9 @@ $pngDir = $chosen.PngDir
 
 # 5) Python exe
 $py = Join-Path $tool ".venv_lm311\Scripts\python.exe"
+if (!(Test-Path $py)) { $py = Join-Path $tool ".venv_lm311\Scripts\python.exe"
 if (!(Test-Path $py)) { $py = Join-Path $tool ".venv_lm\Scripts\python.exe" }
-if (!(Test-Path $py)) { if (Get-Command py -ErrorAction SilentlyContinue) { $py="py"; $pyArgs=@("-3") } else { $py="python" } }
+if (!(Test-Path $py)) { if (Get-Command py -ErrorAction SilentlyContinue) { $py="py"; $pyArgs=@("-3") } else { $py="python" } } else { $py="python" } }
   else { $py = "python" }
 }
 
@@ -108,3 +109,4 @@ $sw.Stop()
 
 Add-Content -Path (Join-Path $logs "annotator_run_last.txt") -Value ("RUN_TS={0}`r`nBASE={1}`r`nLOC={2}`r`nPNG={3}`r`nEXIT={4}`r`nDUR_S={5:n3}`r`n" -f (Get-Date), $base, $chosen.Name, $pngDir, $exit, $sw.Elapsed.TotalSeconds) -Encoding utf8
 exit $exit
+
