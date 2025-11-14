@@ -392,6 +392,7 @@ def main() -> None:
         return
     elif choice == "1":
         run_train_manual(root)
+        input("Press Enter to exit...")
     elif choice == "4":
         show_current_model_info(root)
         input("Press Enter to exit...")
@@ -409,3 +410,4 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.exit(0)
+
