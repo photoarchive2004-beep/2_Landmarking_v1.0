@@ -1,1 +1,2 @@
 ﻿[20251114_185841] Update trainer_menu.py: add settings view and aligned localities list
+[20251114_192034] Update trainer_menu.py (\\n + spacing) and rebuild_localities_status.py (count csv per image)

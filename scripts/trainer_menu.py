@@ -7,19 +7,19 @@ from typing import Dict, List, Tuple
 
 
 def get_landmark_root() -> Path:
-    # scripts/ is one level below Landmarking root
+    """Landmarking root = parent of scripts/."""
     return Path(__file__).resolve().parent.parent
 
 
 def load_localities_status(root: Path) -> Tuple[List[Dict[str, str]], Path]:
+    """Load status/localities_status.csv, create пустой файл если его нет."""
     status_dir = root / "status"
     status_dir.mkdir(parents=True, exist_ok=True)
     csv_path = status_dir / "localities_status.csv"
     rows: List[Dict[str, str]] = []
 
     if not csv_path.exists():
-        # Create header only; rebuild_localities_status.py is responsible
-        # for filling this file on next run.
+        # Только заголовок. Наполнение делает rebuild_localities_status.py.
         with csv_path.open("w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow(
@@ -53,11 +53,13 @@ def _safe_int(value: str, default: int = 0) -> int:
 
 
 def format_localities_block(rows: List[Dict[str, str]]) -> str:
+    """Вернуть текстовый блок со списком локальностей, аккуратно выровненный."""
     if not rows:
         return "Localities: (none found)\n"
 
-    # Name and status alignment
+    # Выравниваем имя и статус по максимальной длине
     name_width = max(len(r["locality"]) for r in rows)
+
     status_labels: List[str] = []
     for r in rows:
         status = (r.get("status") or "").strip()
@@ -66,6 +68,7 @@ def format_localities_block(rows: List[Dict[str, str]]) -> str:
             status_labels.append(f"AUTO {auto_q}")
         else:
             status_labels.append(status)
+
     status_width = max(len(s) for s in status_labels) if status_labels else 0
     if status_width < 6:
         status_width = 6
@@ -76,8 +79,15 @@ def format_localities_block(rows: List[Dict[str, str]]) -> str:
         locality = r["locality"]
         n_img = _safe_int((r.get("n_images") or "").strip() or "0")
         n_lab = _safe_int((r.get("n_labeled") or "").strip() or "0")
+
+        # На всякий случай не даём проценту перевалить за 100
+        if n_lab > n_img:
+            n_lab_eff = n_img
+        else:
+            n_lab_eff = n_lab
+
         if n_img > 0:
-            percent = int(round(100.0 * n_lab / float(n_img)))
+            percent = int(round(100.0 * n_lab_eff / float(n_img)))
         else:
             percent = 0
 
@@ -85,9 +95,11 @@ def format_localities_block(rows: List[Dict[str, str]]) -> str:
         status_part = s_label.ljust(status_width)
         progress_part = f"[{n_lab}/{n_img}] {percent:3d}%"
 
-        lines.append(f"[{idx:2d}] {name_part}   {status_part}   {progress_part}")
+        # Между колонками ровно по 3 пробела
+        line = f"[{idx:2d}] {name_part}   {status_part}   {progress_part}"
+        lines.append(line)
 
-    return "`n".join(lines) + "`n"
+    return "\n".join(lines) + "\n"
 
 
 def _parse_simple_yaml(path: Path) -> Dict[str, object]:
@@ -160,7 +172,7 @@ weight_decay: 0.0001
 
     conf = _parse_simple_yaml(cfg_path)
 
-    print("=== Model settings (config/hrnet_config.yaml) ===`n")
+    print("=== Model settings (config/hrnet_config.yaml) ===\n")
 
     def show_param(name: str, explanation_lines):
         val = conf.get(name, "<not set>")
@@ -262,17 +274,17 @@ def main() -> None:
     root = get_landmark_root()
     rows, _ = load_localities_status(root)
 
-    print("=== GM Landmarking: HRNet Trainer (v1.0) ===`n")
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
     print("1) Train / Finetune model on MANUAL localities")
     print("2) Autolabel locality with current model")
     print("3) Review AUTO locality in annotator (set MANUAL by button)")
     print("4) Info about current model / metrics")
-    print("5) Model settings`n")
-    print("0) Quit`n")
+    print("5) Model settings\n")
+    print("0) Quit\n")
 
     choice = input("Select action: ").strip()
-
     print()  # spacer
+
     print(format_localities_block(rows))
 
     if choice == "0" or choice.upper() == "Q":
