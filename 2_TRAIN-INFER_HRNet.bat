@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
@@ -16,7 +16,7 @@ if errorlevel 1 (
     echo [WARN] Localities base picker failed or was cancelled.
 )
 
-rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt ----
+rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt, if present ----
 set "CFG_DIR=%TOOL_DIR%\cfg"
 set "LAST_BASE=%CFG_DIR%\last_base.txt"
 set "PHOTOS_DIR="
@@ -49,31 +49,17 @@ if not defined PY (
     exit /b 1
 )
 
-rem ---- Init structure + localities registry ----
-%PY% "%TOOL_DIR%\scripts\init_structure.py"
-if errorlevel 1 (
-    echo [ERR] init_structure.py failed.>>"%LOG_DIR%\trainer_last.log"
-    echo [ERR] init_structure.py failed.
-    pause
-    exit /b 1
-)
-
-%PY% "%TOOL_DIR%\scripts\rebuild_localities_status.py"
-if errorlevel 1 (
-    echo [ERR] rebuild_localities_status.py failed.>>"%LOG_DIR%\trainer_last.log"
-    echo [ERR] rebuild_localities_status.py failed.
-    pause
-    exit /b 1
-)
-
 title == GM Landmarking: HRNet Trainer v1.0 ==
 echo == GM Landmarking: HRNet Trainer v1.0 ==
 
+rem ---- Initialization: structure + localities status ----
+"%PY%" "%TOOL_DIR%\scripts\init_structure.py" 1>>"%LOG_DIR%\init_trainer_last.log" 2>&1
+"%PY%" "%TOOL_DIR%\scripts\rebuild_localities_status.py" 1>>"%LOG_DIR%\status_trainer_last.log" 2>&1
+
 rem ---- Launch trainer menu (Python) ----
-%PY% "%TOOL_DIR%\scripts\trainer_menu.py" --root "%ROOT%"
+"%PY%" "%TOOL_DIR%\scripts\trainer_menu.py" --root "%ROOT%"
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" (
-    echo [ERR] Trainer menu exited with code %RC%.>>"%LOG_DIR%\trainer_last.log"
     echo [ERR] Trainer menu exited with code %RC%.
     pause
 )

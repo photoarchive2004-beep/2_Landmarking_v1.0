@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 chcp 65001 >nul
 
@@ -11,7 +11,7 @@ set "LOG_DIR=%TOOL_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 
 rem ---- Localities base picker (Windows dialog) ----
-powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOL_DIR%\scripts\choose_localities.ps1" -Silent
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\choose_localities.ps1" -Silent
 if errorlevel 1 (
     echo [WARN] Localities base picker failed or was cancelled.>>"%LOG_DIR%\annotator_last.log"
     echo [WARN] Localities base picker failed or was cancelled. Using existing "%PHOTOS_DIR%".
@@ -55,22 +55,9 @@ if not exist "%PHOTOS_DIR%" (
     exit /b 1
 )
 
-rem ---- Init structure + localities registry ----
-%PY% "%TOOL_DIR%\scripts\init_structure.py"
-if errorlevel 1 (
-    echo [ERR] init_structure.py failed. See logs for details.>>"%LOG_DIR%\annotator_last.log"
-    echo [ERR] init_structure.py failed. See logs for details.
-    pause
-    exit /b 1
-)
-
-%PY% "%TOOL_DIR%\scripts\rebuild_localities_status.py"
-if errorlevel 1 (
-    echo [ERR] rebuild_localities_status.py failed.>>"%LOG_DIR%\annotator_last.log"
-    echo [ERR] rebuild_localities_status.py failed.
-    pause
-    exit /b 1
-)
+rem ---- Initialization: structure + localities status ----
+"%PY%" "%TOOL_DIR%\scripts\init_structure.py" 1>>"%LOG_DIR%\init_annotator_last.log" 2>&1
+"%PY%" "%TOOL_DIR%\scripts\rebuild_localities_status.py" 1>>"%LOG_DIR%\status_annotator_last.log" 2>&1
 
 rem ---- Menu ----
 echo.
@@ -80,6 +67,7 @@ if /I "!CH!"=="Q" goto :EOF
 
 set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
 %PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+
 if exist "!TMP_SEL!" (
     set /p SEL_LOC=<"!TMP_SEL!"
     del /q "!TMP_SEL!" 2>nul
@@ -99,7 +87,7 @@ if not exist "!PNG_DIR!" (
     exit /b 2
 )
 
-rem ---- Find first PNG robustly (sorted) ----
+rem ---- Find first PNG robustly (sorted)
 set "FIRST_PNG="
 for /f "usebackq delims=" %%F in (`dir /b /a-d "!PNG_DIR!\*.png" ^| sort`) do (
     set "FIRST_PNG=%%F"
@@ -112,7 +100,7 @@ if not defined FIRST_PNG (
     exit /b 3
 )
 
-rem ---- Auto Scale Wizard (no questions) ----
+rem ---- Auto Scale Wizard (no questions)
 if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
     echo [INFO] No SCALE for "!FIRST_PNG!" -> starting Scale Wizard...
     set "GUI_LOG=%LOG_DIR%\gui_scale_last.log"
@@ -125,9 +113,10 @@ if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
     )
 )
 
-rem ---- Launch custom GUI (always) ----
+rem ---- Launch custom GUI (always)
 set "GUI_LOG=%LOG_DIR%\gui_run_last.log"
 %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" 1> "!GUI_LOG!" 2>&1
+
 set "RC=%ERRORLEVEL%"
 if not "!RC!"=="0" (
     echo [ERR] GUI exited with code !RC!. See "!GUI_LOG!" below:
