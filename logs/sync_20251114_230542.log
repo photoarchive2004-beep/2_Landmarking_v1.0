@@ -1,0 +1,68 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251114230542
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 12180
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251114_230542.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Проверка git-репозитория и удалённого origin
+PS D:\GM\tools\2_Landmarking_v1.0> git rev-parse --is-inside-work-tree
+true
+PS D:\GM\tools\2_Landmarking_v1.0> git remote -v
+origin  https://github.com/photoarchive2004-beep/2_Landmarking_v1.0.git (fetch)
+origin  https://github.com/photoarchive2004-beep/2_Landmarking_v1.0.git (push)
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   logs/git_sync_last.log
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        logs/sync_20251114_230542.log
+
+no changes added to commit (use "git add" and/or "git commit -a")
+PS D:\GM\tools\2_Landmarking_v1.0> # (пока НИЧЕГО не меняем, просто смотрим)
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Location "D:\GM\tools\2_Landmarking_v1.0"
+PS D:\GM\tools\2_Landmarking_v1.0> # Старт лога
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path "logs")) { New-Item -ItemType Directory -Path "logs" | Out-Null }
+PS D:\GM\tools\2_Landmarking_v1.0> $ts  = Get-Date -Format "yyyyMMdd_HHmmss"
+PS D:\GM\tools\2_Landmarking_v1.0> $log = "logs\sync_$ts.log"
+PS D:\GM\tools\2_Landmarking_v1.0> Start-Transcript -Path $log -Force
+Транскрибирование запущено, выходной файл logs\sync_20251114_230603.log
+PS D:\GM\tools\2_Landmarking_v1.0> # Обновить информацию с GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Здесь дальше уже можно выполнять команды, которые я буду давать для правок
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Location "D:\GM\tools\2_Landmarking_v1.0"
+PS D:\GM\tools\2_Landmarking_v1.0> # Проверяем, есть ли изменения
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Добавляем все изменённые файлы
+PS D:\GM\tools\2_Landmarking_v1.0> git add -A
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Фиксируем изменения (СООБЩЕНИЕ ОБЯЗАТЕЛЬНО ПОДПРАВЬ ПОД СУТЬ ШАГА)
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "sync: apply step <КРАТКОЕ ОПИСАНИЕ>"
+
+PS D:\GM\tools\2_Landmarking_v1.0> # ОБЯЗАТЕЛЬНЫЙ push + проверка того, что ветка main на GitHub обновилась
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Останавливаем лог этой сессии
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+Транскрибирование остановлено, выходной файл D:\GM\tools\2_Landmarking_v1.0\logs\sync_20251114_230603.log

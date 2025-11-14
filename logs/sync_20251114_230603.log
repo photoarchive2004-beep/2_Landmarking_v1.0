@@ -1,0 +1,48 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251114230603
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 12180
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251114_230603.log
+PS D:\GM\tools\2_Landmarking_v1.0> # Обновить информацию с GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Здесь дальше уже можно выполнять команды, которые я буду давать для правок
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Location "D:\GM\tools\2_Landmarking_v1.0"
+PS D:\GM\tools\2_Landmarking_v1.0> # Проверяем, есть ли изменения
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Добавляем все изменённые файлы
+PS D:\GM\tools\2_Landmarking_v1.0> git add -A
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Фиксируем изменения (СООБЩЕНИЕ ОБЯЗАТЕЛЬНО ПОДПРАВЬ ПОД СУТЬ ШАГА)
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "sync: apply step <КРАТКОЕ ОПИСАНИЕ>"
+
+PS D:\GM\tools\2_Landmarking_v1.0> # ОБЯЗАТЕЛЬНЫЙ push + проверка того, что ветка main на GitHub обновилась
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Останавливаем лог этой сессии
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251114230621
+**********************
