@@ -61,23 +61,33 @@ rem ---- Initialization: structure + localities status ----
 
 rem ---- Menu ----
 echo.
-%PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
-set /p CH=
-if /I "!CH!"=="Q" goto :EOF
 
-set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
-%PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
-
-if exist "!TMP_SEL!" (
-    set /p SEL_LOC=<"!TMP_SEL!"
-    del /q "!TMP_SEL!" 2>nul
+rem If called from trainer in REVIEW_AUTO mode, force given locality
+if /I "%GM_MODE%"=="REVIEW_AUTO" (
+    if defined GM_LOCALITY (
+        set "SEL_LOC=%GM_LOCALITY%"
+    )
 )
 
 if not defined SEL_LOC (
-    echo [ERR] Invalid selection.
-    echo See "%LOG_DIR%\menu_pick_last.err"
-    pause
-    exit /b 2
+    %PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
+    set /p CH=
+    if /I "!CH!"=="Q" goto :EOF
+
+    set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
+    %PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+
+    if exist "!TMP_SEL!" (
+        set /p SEL_LOC=<"!TMP_SEL!"
+        del /q "!TMP_SEL!" 2>nul
+    )
+
+    if not defined SEL_LOC (
+        echo [ERR] Invalid selection.
+        echo See "%LOG_DIR%\menu_pick_last.err"
+        pause
+        exit /b 2
+    )
 )
 
 set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
@@ -125,3 +135,4 @@ if not "!RC!"=="0" (
 )
 
 exit /b 0
+
