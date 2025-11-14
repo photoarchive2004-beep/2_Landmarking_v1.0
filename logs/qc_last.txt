@@ -1,11 +1,4 @@
-img_015687.png: LM2 closer to LM3
-img_017689.png: LM2 closer to LM3
-img_018690.png: LM3 closer to LM2
-img_020692.png: LM3 closer to LM2
-img_021693.png: LM3 closer to LM2; LM11 closer to LM12; LM12 closer to LM11
-img_024696.png: LM2 closer to LM3
-img_031703.png: LM3 closer to LM2
-img_032704.png: LM3 closer to LM2
-img_034706.png: LM2 closer to LM3
-img_035707.png: LM3 closer to LM2
-img_040712.png: LM3 closer to LM2
+img_056805.png: LM3 closer to LM2
+img_058807.png: LM2 closer to LM3
+img_059808.png: LM3 closer to LM2
+img_060809.png: LM2 closer to LM3
