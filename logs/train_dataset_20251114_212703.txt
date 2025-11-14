@@ -1,0 +1,16 @@
+HRNet training dataset summary
+root: D:\GM\tools\2_Landmarking_v1.0
+base photos dir (from cfg/last_base.txt): G:\Research\Morphology\Photos\Phoxinus
+
+balkh-alakol_Ayagoz_KZ_25: images=19, labeled=19, 100%
+balkh-alakol_Karakol_KZ_25: images=13, labeled=13, 100%
+balkh-alakol_Lepsy_KZ_25: images=11, labeled=11, 100%
+baltsea-east_isetensis-Ryadan-Chern-Dymka_RU_25: images=7, labeled=7, 100%
+baltsea-east_isetensis-Sitnya_RU_25: images=19, labeled=19, 100%
+ob-altay_Belokurikha_RU_25: images=11, labeled=11, 100%
+ob-altay_Bol_Terekta_RU_25: images=15, labeled=15, 100%
+ob-altay_Chaganka_RU_25: images=29, labeled=29, 100%
+ob-altay_Kamenka_RU_25: images=11, labeled=11, 100%
+ob-altay_Kubardu_RU_25: images=11, labeled=11, 100%
+ob-altay_Nizh-Kalmanka_RU_25: images=7, labeled=7, 100%
+turk-west_abanticus-Abant_TR_25: images=10, labeled=10, 100%
