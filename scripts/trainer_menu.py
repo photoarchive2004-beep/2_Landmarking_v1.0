@@ -370,6 +370,176 @@ def run_train_manual(root: Path) -> None:
         print()
 
 
+def run_review_auto(root: Path) -> None:
+    """
+    Action 3: review AUTO locality in annotator (GM_MODE=REVIEW_AUTO)
+    according to ТЗ_1.0.
+    """
+    import csv
+    import os
+    import subprocess
+    from datetime import datetime
+
+    # Читаем статус локальностей
+    rows, csv_path = load_localities_status(root)
+    if not rows:
+        print("No localities registered in status/localities_status.csv.")
+        print("Nothing to review.")
+        print()
+        return
+
+    auto_rows = []
+    for row in rows:
+        status_raw = (row.get("status") or "").strip().upper()
+        if status_raw == "AUTO":
+            auto_rows.append(row)
+
+    if not auto_rows:
+        print("No AUTO localities to review.")
+        print()
+        return
+
+    print("AUTO localities:\n")
+    idx_width = len(str(len(auto_rows)))
+    name_width = max(len((r.get("locality") or "")) for r in auto_rows) + 2
+
+    for i, row in enumerate(auto_rows, 1):
+        locality = (row.get("locality") or "").strip()
+        auto_q = (row.get("auto_quality") or "").strip()
+        try:
+            n_images = int(row.get("n_images") or 0)
+        except Exception:
+            n_images = 0
+        try:
+            n_labeled = int(row.get("n_labeled") or 0)
+        except Exception:
+            n_labeled = 0
+        status_str = f"AUTO {auto_q}" if auto_q else "AUTO"
+        left = f"[{i:>{idx_width}d}] {locality.ljust(name_width)}"
+        right = f"({n_images} imgs, {n_labeled} csv)"
+        print(f"{left}{status_str.ljust(10)}{right}")
+    print()
+
+    choice = input("Select locality to review (or 0 to cancel): ").strip()
+    if not choice or choice in ("0", "Q", "q"):
+        print("Review cancelled.")
+        print()
+        return
+
+    try:
+        idx = int(choice)
+    except ValueError:
+        print("[ERR] Invalid selection.")
+        print()
+        return
+
+    if idx < 1 or idx > len(auto_rows):
+        print("[ERR] Locality number out of range.")
+        print()
+        return
+
+    selected = auto_rows[idx - 1]
+    locality = (selected.get("locality") or "").strip()
+    if not locality:
+        print("[ERR] Selected locality name is empty.")
+        print()
+        return
+
+    annotator = root / "1_ANNOTATOR.bat"
+    if not annotator.exists():
+        print("[ERR] 1_ANNOTATOR.bat not found.")
+        print()
+        return
+
+    env = os.environ.copy()
+    env["GM_LOCALITY"] = locality
+    env["GM_MODE"] = "REVIEW_AUTO"
+
+    print()
+    print(f'Starting annotator in REVIEW_AUTO mode for locality "{locality}"...')
+    print()
+
+    try:
+        # На Windows .bat безопаснее запускать через shell=True
+        rc = subprocess.call(str(annotator), env=env, shell=True)
+    except Exception as exc:
+        print("[ERR] Cannot launch 1_ANNOTATOR.bat:")
+        print(f"      {exc}")
+        print()
+        return
+
+    if rc != 0:
+        print(f"[WARN] Annotator exited with code {rc}.")
+        print("If you closed the window manually, review may be incomplete.")
+        print()
+
+    flag_dir = root / "status"
+    flag_path = flag_dir / f"review_done_{locality}.flag"
+
+    if not flag_path.exists():
+        print(f'Review for locality "{locality}" was not finished (no flag file).')
+        print("Status unchanged.")
+        print()
+        return
+
+    status_file = csv_path
+    if not status_file.exists():
+        print("[ERR] status/localities_status.csv not found.")
+        print("Cannot update status after review.")
+        print()
+        return
+
+    try:
+        with status_file.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            rows_all = list(reader)
+    except Exception as exc:
+        print("[ERR] Cannot read localities_status.csv for update:")
+        print(f"      {exc}")
+        print()
+        return
+
+    now_iso = datetime.now().isoformat(timespec="seconds")
+
+    if not fieldnames:
+        fieldnames = [
+            "locality",
+            "status",
+            "auto_quality",
+            "last_model_run",
+            "last_update",
+            "n_images",
+            "n_labeled",
+        ]
+
+    for row in rows_all:
+        if (row.get("locality") or "").strip() == locality:
+            row["status"] = "MANUAL"
+            row["auto_quality"] = ""
+            if "last_update" in fieldnames:
+                row["last_update"] = now_iso
+
+    try:
+        with status_file.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows_all:
+                writer.writerow(row)
+    except Exception as exc:
+        print("[ERR] Cannot write updated localities_status.csv:")
+        print(f"      {exc}")
+        print()
+        return
+
+    try:
+        flag_path.unlink()
+    except OSError:
+        pass
+
+    print(f'Locality "{locality}" marked as MANUAL (after review).')
+    print()
+
 def run_autolabel(root: Path) -> None:
     """
     Action 2: autolabel locality with current model.
@@ -608,5 +778,6 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.exit(0)
+
 
 
