@@ -9,7 +9,7 @@ def find_tool_dir() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def load_base_localities(tool_dir: Path) -> Path | None:
+def load_base_localities(tool_dir: Path):
     cfg_dir = tool_dir / "cfg"
     last_base = cfg_dir / "last_base.txt"
     if not last_base.exists():
@@ -36,9 +36,9 @@ def scan_localities(base_dir: Path):
     """
     Return list of (locality_name, n_images, n_labeled).
 
-    n_labeled считается по принципу:
+    n_labeled считается так:
     для каждого img_XXXX.png считаем размеченным, если рядом есть файл img_XXXX.csv.
-    Файлы *.scale.csv, *.pass2.csv и прочие дополнения не учитываются.
+    Подпапка "bad" игнорируется, т.к. мы не обходим подкаталоги.
     """
     results = []
     for loc_dir in sorted(p for p in base_dir.iterdir() if p.is_dir()):
@@ -46,6 +46,7 @@ def scan_localities(base_dir: Path):
         if not png_dir.is_dir():
             continue
 
+        # Только файлы *.png в самом png/, без рекурсии
         images = sorted(png_dir.glob("*.png"))
         n_images = len(images)
         if n_images == 0:
@@ -108,15 +109,24 @@ def main() -> int:
     new_rows = []
     for name, n_images, n_labeled in scanned:
         prev = old.get(name, {})
-        status = prev.get("status", "")
-        auto_quality = prev.get("auto_quality", "")
-        last_model_run = prev.get("last_model_run", "")
-        last_update = prev.get("last_update", "")
+        prev_status = (prev.get("status") or "").strip()
+        status = prev_status
+        auto_quality = (prev.get("auto_quality") or "").strip()
+        last_model_run = (prev.get("last_model_run") or "").strip()
+        last_update = (prev.get("last_update") or "").strip()
 
-        # Новая локальность: расставлены все точки -> сразу MANUAL
-        if name not in old:
-            if n_images > 0 and n_labeled == n_images:
+        # Если все изображения размечены и статус пустой -> считаем MANUAL
+        if n_images > 0 and n_labeled == n_images:
+            if not prev_status:
                 status = "MANUAL"
+            elif prev_status.upper() == "MANUAL":
+                status = "MANUAL"
+            else:
+                # AUTO и другие статусы не трогаем автоматически
+                status = prev_status
+
+        if not last_update:
+            last_update = now
 
         new_rows.append(
             {
@@ -124,7 +134,7 @@ def main() -> int:
                 "status": status,
                 "auto_quality": auto_quality,
                 "last_model_run": last_model_run,
-                "last_update": last_update or now,
+                "last_update": last_update,
                 "n_images": str(n_images),
                 "n_labeled": str(n_labeled),
             }
