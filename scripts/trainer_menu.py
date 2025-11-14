@@ -370,6 +370,204 @@ def run_train_manual(root: Path) -> None:
         print()
 
 
+def run_autolabel(root: Path) -> None:
+    """
+    Action 2: autolabel locality with current model.
+
+    Логика по ТЗ_1.0:
+    - показываем локальности со status "" или "AUTO";
+    - пользователь выбирает номер;
+    - проверяем модель и наличие PNG;
+    - вызываем scripts/infer_hrnet.py --locality <name>;
+    - если инференс завершился успешно (код 0), обновляем
+      status/localities_status.csv и печатаем сводку.
+    """
+    import csv
+    import json
+    import subprocess
+    import sys
+    from datetime import datetime
+
+    rows, csv_path = load_localities_status(root)
+    if not rows:
+        print("No localities registered in status/localities_status.csv.")
+        print("Nothing to autolabel.")
+        print()
+        return
+
+    # Кандидаты: status пустой или AUTO (MANUAL не трогаем)
+    candidates = []
+    for row in rows:
+        status_raw = (row.get("status") or "").strip().upper()
+        if status_raw == "" or status_raw == "AUTO":
+            candidates.append(row)
+
+    if not candidates:
+        print("No localities available for autolabel.")
+        print("Only MANUAL localities found.")
+        print()
+        return
+
+    print("Localities available for autolabel:\n")
+    idx_width = len(str(len(candidates)))
+    name_width = max(len((r.get("locality") or "")) for r in candidates) + 2
+    status_width = 10
+
+    for i, row in enumerate(candidates, 1):
+        locality = (row.get("locality") or "").strip()
+        status_raw = (row.get("status") or "").strip().upper()
+        auto_q = (row.get("auto_quality") or "").strip()
+        if status_raw == "AUTO":
+            status_str = f"AUTO {auto_q}" if auto_q else "AUTO"
+        else:
+            status_str = ""
+        try:
+            n_images = int(row.get("n_images") or 0)
+        except Exception:
+            n_images = 0
+        try:
+            n_labeled = int(row.get("n_labeled") or 0)
+        except Exception:
+            n_labeled = 0
+
+        left = f"[{i:>{idx_width}d}] {locality.ljust(name_width)}"
+        right = f"({n_images} imgs, {n_labeled} csv)"
+        print(f"{left}{status_str.ljust(status_width)}{right}")
+    print()
+
+    choice = input("Select locality number (or 0 to cancel): ").strip()
+    if not choice or choice in ("0", "Q", "q"):
+        print("Autolabel cancelled.")
+        print()
+        return
+
+    try:
+        idx = int(choice)
+    except ValueError:
+        print("[ERR] Invalid selection.")
+        print()
+        return
+
+    if idx < 1 or idx > len(candidates):
+        print("[ERR] Locality number out of range.")
+        print()
+        return
+
+    selected = candidates[idx - 1]
+    locality = (selected.get("locality") or "").strip()
+    try:
+        n_images = int(selected.get("n_images") or 0)
+    except Exception:
+        n_images = 0
+
+    # Проверяем модель
+    model_path = root / "models" / "current" / "hrnet_best.pth"
+    if not model_path.exists():
+        print("[ERR] Current model not found: models/current/hrnet_best.pth")
+        print("Run action 1 (Train) before autolabel.")
+        print()
+        return
+
+    # Проверяем, что есть хоть один PNG (по регистру локальностей)
+    if n_images <= 0:
+        print(f"[ERR] Locality \"{locality}\" has no PNG images (n_images = 0).")
+        print("Nothing to autolabel.")
+        print()
+        return
+
+    # Проверяем наличие скрипта инференса
+    script = root / "scripts" / "infer_hrnet.py"
+    if not script.exists():
+        print("[ERR] scripts/infer_hrnet.py not found.")
+        print("Autolabel is not available.")
+        print()
+        return
+
+    # Запускаем инференс
+    try:
+        rc = subprocess.call([sys.executable, str(script), "--locality", locality])
+    except Exception as exc:
+        print("[ERR] Cannot start infer_hrnet.py:")
+        print(f"      {exc}")
+        print()
+        return
+
+    if rc != 0:
+        print(f"[ERR] infer_hrnet.py exited with code {rc}.")
+        print("Autolabel failed, status file was not updated.")
+        print()
+        return
+
+    # Если дошли сюда — считаем, что инференс прошёл успешно и CSV созданы.
+    status_file = csv_path
+    if not status_file.exists():
+        print("[ERR] status/localities_status.csv not found.")
+        print("Cannot update locality status after autolabel.")
+        print()
+        return
+
+    quality_path = root / "models" / "current" / "quality.json"
+    if not quality_path.exists():
+        print("[ERR] models/current/quality.json not found.")
+        print("Cannot update auto_quality without model metrics.")
+        print()
+        return
+
+    try:
+        q_data = json.loads(quality_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        print()
+        return
+
+    run_id = (q_data.get("run_id") or "").strip()
+    pck_percent = q_data.get("pck_r_percent")
+    if pck_percent is None:
+        try:
+            pck_raw = float(q_data.get("pck_r", 0.0) or 0.0)
+        except Exception:
+            pck_raw = 0.0
+        pck_percent = int(round(100.0 * pck_raw))
+    else:
+        try:
+            pck_percent = int(pck_percent)
+        except Exception:
+            pck_percent = 0
+
+    now_iso = datetime.now().isoformat(timespec="seconds")
+
+    rows_all = []
+    with status_file.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames or []
+        for row in reader:
+            if (row.get("locality") or "").strip() == locality:
+                try:
+                    n_images_row = int(row.get("n_images") or 0)
+                except Exception:
+                    n_images_row = n_images
+                n_images_row = max(n_images_row, n_images)
+                row["status"] = "AUTO"
+                row["auto_quality"] = str(pck_percent)
+                row["last_model_run"] = run_id
+                row["last_update"] = now_iso
+                row["n_images"] = str(n_images_row)
+                row["n_labeled"] = str(n_images_row)
+            rows_all.append(row)
+
+    with status_file.open("w", newline="", encoding="utf-8") as f:
+        if not fieldnames:
+            fieldnames = ["locality", "status", "auto_quality", "last_model_run", "last_update", "n_images", "n_labeled"]
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows_all:
+            writer.writerow(row)
+
+    print(f'Autolabel done for locality "{locality}".')
+    print(f"Status: AUTO {pck_percent}")
+    print()
+
 def main() -> None:
     root = get_landmark_root()
     rows, _ = load_localities_status(root)
@@ -410,4 +608,5 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.exit(0)
+
 
