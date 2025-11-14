@@ -313,3 +313,57 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except KeyboardInterrupt:
         sys.exit(1)
+
+from pathlib import Path
+import json
+
+
+def _gm_print_training_summary_from_quality():
+    """
+    Print training summary after HRNet training, as described in ТЗ_1.0.
+    Uses models/current/quality.json.
+    """
+    root = Path(__file__).resolve().parent.parent
+    q_path = root / "models" / "current" / "quality.json"
+
+    if not q_path.exists():
+        print("[WARN] models/current/quality.json not found, cannot print training summary.")
+        return
+
+    try:
+        data = json.loads(q_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        return
+
+    run_id = data.get("run_id", "?")
+    n_train = int(data.get("n_train_images", 0) or 0)
+    n_val = int(data.get("n_val_images", 0) or 0)
+    train_share = float(data.get("train_share", 0.0) or 0.0)
+    val_share = float(data.get("val_share", 0.0) or 0.0)
+    pck_percent = int(data.get("pck_r_percent", 0) or 0)
+    n_loc = int(data.get("n_manual_localities", 0) or 0)
+
+    train_pct = int(round(train_share * 100.0)) if train_share > 0.0 else 0
+    val_pct = int(round(val_share * 100.0)) if val_share > 0.0 else 0
+
+    print()
+    print("Training finished.")
+    print()
+    print(f"Used MANUAL localities: {n_loc}")
+    print(f"Train images: {n_train} ({train_pct}%)")
+    print(f"Val images:   {n_val:4d} ({val_pct}%)")
+    print()
+    print(f"PCK@R (validation): {pck_percent} %")
+    print()
+    print("Model saved as: models/current/hrnet_best.pth")
+    print(f"Run id: {run_id}")
+
+
+if __name__ == "__main__":
+    try:
+        _gm_print_training_summary_from_quality()
+    except Exception as exc:
+        print("[WARN] Failed to print training summary:")
+        print(f"       {exc}")
