@@ -1,0 +1,12 @@
+﻿model:
+  name: hrnet_w32
+  num_keypoints: 20
+
+train:
+  batch_size: 8
+  epochs: 50
+  learning_rate: 0.001
+
+data:
+  resize_mode: "longest_side"
+  input_size: [512, 512]
