@@ -1,4 +1,5 @@
-img_056805.png: LM3 closer to LM2
-img_058807.png: LM2 closer to LM3
-img_059808.png: LM3 closer to LM2
-img_060809.png: LM2 closer to LM3
+img_0011126.png: LM3 closer to LM2
+img_0021127.png: LM3 closer to LM2
+img_0051130.png: LM2 closer to LM3
+img_0071132.png: LM3 closer to LM2
+img_0101135.png: LM2 closer to LM3; LM3 closer to LM5
