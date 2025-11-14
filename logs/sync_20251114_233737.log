@@ -1,0 +1,761 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251114233737
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 9712
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл D:\GM\tools\2_Landmarking_v1.0\logs\sync_20251114_233737.log
+PS D:\GM\tools\2_Landmarking_v1.0> # === 1. Обновить код из GitHub (на всякий случай) ===
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+        modified:   logs/sync_20251114_232147.log
+        modified:   starting
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        logs/sync_20251114_233737.log
+
+no changes added to commit (use "git add" and/or "git commit -a")
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> # === 2. Создаём scripts\init_structure.py (по ТЗ) ===
+PS D:\GM\tools\2_Landmarking_v1.0> $initPath = Join-Path $root "scripts\init_structure.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $initContent = @'
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def get_root() -> Path:
+    """Landmarking root = folder with 1_ANNOTATOR.bat."""
+    # scripts/ -> parent = tools/2_Landmarking_v1.0
+    return Path(__file__).resolve().parent.parent
+
+
+def ensure_dirs(root: Path) -> None:
+    """
+    Create all service directories if they do not exist.
+    According to ТЗ_1.0: status/, models/current/, models/history/,
+    config/, logs/, datasets/.
+    """
+    subdirs = [
+        "status",
+        "models/current",
+        "models/history",
+        "config",
+        "logs",
+        "datasets",
+    ]
+    for sub in subdirs:
+        (root / sub).mkdir(parents=True, exist_ok=True)
+
+
+def ensure_config(root: Path) -> None:
+    """
+    Create default config/hrnet_config.yaml if missing.
+    Values follow ТЗ_1.0 (simple HRNet W32 config).
+    """
+    cfg_dir = root / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = cfg_dir / "hrnet_config.yaml"
+    if cfg_path.exists():
+        return
+
+    default_yaml = """# HRNet training config for GM Landmarking
+model_type: "hrnet_w32"
+input_size: 256  # 0 = do not resize (see resize_mode)
+resize_mode: "resize"  # "resize" or "original"
+keep_aspect_ratio: true
+batch_size: 8
+learning_rate: 0.0005
+max_epochs: 100
+train_val_split: 0.9
+flip_augmentation: true
+rotation_augmentation_deg: 15
+scale_augmentation: 0.3
+weight_decay: 0.0001
+"""
+    cfg_path.write_text(default_yaml, encoding="utf-8")
+
+
+def ensure_status_header(root: Path) -> None:
+    """
+    Create empty status/localities_status.csv with header
+    if file does not exist yet.
+    """
+    status_dir = root / "status"
+    status_dir.mkdir(parents=True, exist_ok=True)
+    status_csv = status_dir / "localities_status.csv"
+    if status_csv.exists():
+        return
+
+    header = (
+        "locality,status,auto_quality,"
+        "last_model_run,last_update,n_images,n_labeled\n"
+    )
+    status_csv.write_text(header, encoding="utf-8")
+
+
+def main() -> int:
+    root = get_root()
+    ensure_dirs(root)
+    ensure_config(root)
+    ensure_status_header(root)
+    # No verbose output here: this script is called on every start.
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $initPath -Value $initContent -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # === 3. Обновляем scripts\trainer_menu.py (добавляем действие 1 и пункт 4) ===
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path $root "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerContent = @'
+from __future__ import annotations
+
+import csv
+import json
+import subprocess
+import sys
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+
+def get_landmark_root() -> Path:
+    """Landmarking root = parent of scripts/."""
+    return Path(__file__).resolve().parent.parent
+
+
+def load_localities_status(root: Path) -> Tuple[List[Dict[str, str]], Path]:
+    """
+    Load status/localities_status.csv, create empty header if missing.
+
+    Наполнение делает rebuild_localities_status.py (сканирует папки
+    локальностей и обновляет n_images, n_labeled и т.п.).
+    """
+    status_dir = root / "status"
+    status_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = status_dir / "localities_status.csv"
+
+    rows: List[Dict[str, str]] = []
+    if not csv_path.exists():
+        # Только заголовок, если файла ещё нет.
+        with csv_path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(
+                [
+                    "locality",
+                    "status",
+                    "auto_quality",
+                    "last_model_run",
+                    "last_update",
+                    "n_images",
+                    "n_labeled",
+                ]
+            )
+        return rows, csv_path
+
+    with csv_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not row.get("locality"):
+                continue
+            rows.append(row)
+    return rows, csv_path
+
+
+def _safe_int(value: str, default: int = 0) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def format_localities_block(rows: List[Dict[str, str]]) -> str:
+    """
+    Вернуть текстовый блок со списком локальностей, аккуратно выровненный.
+
+    Это информационный список для главного меню тренера
+    (Localities (photos/<locality>/png): ...).
+    """
+    if not rows:
+        return "Localities: (none found)\n"
+
+    # Выравниваем имя и статус по максимальной длине
+    name_width = max(len(r["locality"]) for r in rows)
+
+    status_labels: List[str] = []
+    for r in rows:
+        status = (r.get("status") or "").strip()
+        auto_q = (r.get("auto_quality") or "").strip()
+        if status.upper() == "AUTO" and auto_q:
+            status_labels.append(f"AUTO {auto_q}")
+        else:
+            status_labels.append(status or "")
+
+    status_width = max((len(s) for s in status_labels), default=0)
+    if status_width < 6:
+        status_width = 6
+
+    lines: List[str] = []
+    lines.append("Localities (photos/<locality>/png):\n")
+
+    for idx, (r, s_label) in enumerate(zip(rows, status_labels), start=1):
+        locality = r["locality"]
+        n_img = _safe_int((r.get("n_images") or "").strip() or "0")
+        n_lab = _safe_int((r.get("n_labeled") or "").strip() or "0")
+
+        # На всякий случай не даём проценту перевалить за 100
+        if n_lab > n_img:
+            n_lab_eff = n_img
+        else:
+            n_lab_eff = n_lab
+
+        if n_img > 0:
+            percent = int(round(100.0 * n_lab_eff / float(n_img)))
+        else:
+            percent = 0
+
+        name_part = locality.ljust(name_width)
+        status_part = s_label.ljust(status_width)
+        progress_part = f"[{n_lab}/{n_img}] {percent:3d}%"
+
+        # Между колонками ровно по 3 пробела
+        line = f"[{idx:2d}] {name_part}   {status_part}   {progress_part}"
+        lines.append(line)
+
+    return "\n".join(lines) + "\n"
+
+
+def _parse_simple_yaml(path: Path) -> Dict[str, object]:
+    """
+    Very small YAML reader for simple "key: value" lines.
+    No nesting, no lists, comments (# ...) allowed.
+    """
+    if not path.exists():
+        return {}
+
+    result: Dict[str, object] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+
+        key, value_raw = line.split(":", 1)
+        key = key.strip()
+        value_str = value_raw.strip()
+
+        # Strip quotes
+        if (
+            (value_str.startswith('"') and value_str.endswith('"'))
+            or (value_str.startswith("'") and value_str.endswith("'"))
+        ):
+            value_str = value_str[1:-1]
+
+        # Convert bool / int / float if possible
+        lower = value_str.lower()
+        if lower == "true":
+            value: object = True
+        elif lower == "false":
+            value = False
+        else:
+            try:
+                if "." in value_str:
+                    value = float(value_str)
+                else:
+                    value = int(value_str)
+            except Exception:
+                value = value_str
+
+        result[key] = value
+
+    return result
+
+
+def show_model_settings(root: Path) -> None:
+    """
+    Пункт меню 5: показать настройки из config/hrnet_config.yaml
+    с простыми английскими пояснениями (как в ТЗ).
+    """
+    cfg_dir = root / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = cfg_dir / "hrnet_config.yaml"
+
+    # Если файла нет – создаём дефолтный, близкий к примеру из ТЗ
+    if not cfg_path.exists():
+        default_text = """# HRNet training config for GM Landmarking
+model_type: "hrnet_w32"
+input_size: 256  # 0 = do not resize (see resize_mode)
+resize_mode: "resize"  # "resize" or "original"
+keep_aspect_ratio: true
+batch_size: 8
+learning_rate: 0.0005
+max_epochs: 100
+train_val_split: 0.9
+flip_augmentation: true
+rotation_augmentation_deg: 15
+scale_augmentation: 0.3
+weight_decay: 0.0001
+"""
+        cfg_path.write_text(default_text, encoding="utf-8")
+
+    conf = _parse_simple_yaml(cfg_path)
+
+    print("=== Model settings (config/hrnet_config.yaml) ===\n")
+
+    def show_param(name: str, explanation_lines):
+        val = conf.get(name, "")
+        print(f"{name} = {val!r}")
+        for line in explanation_lines:
+            print(f"  - {line}")
+        print()
+
+    show_param(
+        "model_type",
+        [
+            "HRNet backbone type.",
+            'For example: "hrnet_w32" is a good default.',
+        ],
+    )
+    show_param(
+        "input_size",
+        [
+            "Target input size for the network in pixels.",
+            "If resize_mode = 'resize': images are scaled to this size.",
+            "If input_size = 0 and resize_mode = 'original': use original image size.",
+        ],
+    )
+    show_param(
+        "resize_mode",
+        [
+            "How to change image size before training.",
+            "'resize' - scale images to input_size.",
+            "'original' - keep original resolution (only safe padding/downscale if needed).",
+        ],
+    )
+    show_param(
+        "keep_aspect_ratio",
+        [
+            "If True: keep fish shape, no stretching by one axis.",
+        ],
+    )
+    show_param(
+        "batch_size",
+        [
+            "How many images are processed in one training step.",
+        ],
+    )
+    show_param(
+        "learning_rate",
+        [
+            "How fast the model learns.",
+            "Too high -> unstable, too low -> very slow.",
+        ],
+    )
+    show_param(
+        "max_epochs",
+        [
+            "Maximum number of passes through the training data.",
+        ],
+    )
+    show_param(
+        "train_val_split",
+        [
+            "Part of data used for training.",
+            "0.9 = 90% train, 10% validation.",
+        ],
+    )
+    show_param(
+        "flip_augmentation",
+        [
+            "Random horizontal flip of images during training.",
+        ],
+    )
+    show_param(
+        "rotation_augmentation_deg",
+        [
+            "Maximum random rotation in degrees during training.",
+        ],
+    )
+    show_param(
+        "scale_augmentation",
+        [
+            "Random zoom in/out (for example 0.3 = up to 30%).",
+        ],
+    )
+    show_param(
+        "weight_decay",
+        [
+            "Regularization to reduce overfitting.",
+        ],
+    )
+
+    print("To change these values:")
+    print('1) Open file "config/hrnet_config.yaml" with a text editor (for example Notepad).')
+    print("2) Change numbers or true/false values.")
+    print("3) Save the file.")
+    print("New training runs will automatically use the new settings.")
+    print("Do not change the parameter names, only their values.")
+    print()
+
+
+def show_current_model_info(root: Path) -> None:
+    """
+    Пункт меню 4: информация о текущей модели по models/current/quality.json.
+
+    Если файла нет – выводим понятное сообщение.
+    Формат вывода соответствует примеру из ТЗ.
+    """
+    q_path = root / "models" / "current" / "quality.json"
+    print("Current model info:\n")
+
+    if not q_path.exists():
+        print("Model is not trained yet (models/current/quality.json not found).")
+        print()
+        return
+
+    try:
+        data = json.loads(q_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        print()
+        return
+
+    run_id = data.get("run_id", "?")
+    # В quality.json модель может не быть прописана – подставляем дефолт.
+    model = data.get("model_type", "HRNet-W32 (18 keypoints)")
+
+    n_train = int(data.get("n_train_images", 0) or 0)
+    n_val = int(data.get("n_val_images", 0) or 0)
+
+    train_share = float(data.get("train_share", 0.0) or 0.0)
+    val_share = float(data.get("val_share", 0.0) or 0.0)
+
+    # PCK в процентах – стараемся сначала взять pck_r_percent.
+    pck_percent = data.get("pck_r_percent")
+    if pck_percent is None:
+        # Если есть только pck_r в виде доли 0.xx
+        pck_raw = float(data.get("pck_r", 0.0) or 0.0)
+        pck_percent = int(round(100.0 * pck_raw))
+    else:
+        pck_percent = int(pck_percent)
+
+    n_manual = int(data.get("n_manual_localities", 0) or 0)
+
+    print(f"Run id: {run_id}")
+    print(f"Model: {model}")
+    print()
+    print(f"Train images: {n_train} ({int(round(train_share * 100))}%)")
+    print(f"Val images:   {n_val} ({int(round(val_share * 100))}%)")
+    print()
+    print(f"PCK@R (validation): {pck_percent} %")
+    print()
+    print(f"Used MANUAL localities: {n_manual}")
+    print()
+
+
+def run_train_manual(root: Path) -> None:
+    """
+    Пункт меню 1: запустить scripts/train_hrnet.py.
+
+    На этом шаге train_hrnet.py пока только готовит датасет и выводит
+    сводку (как сейчас реализовано). Реальное обучение HRNet/MMPose
+    будет добавлено отдельным шагом, чтобы не усложнять сразу всё.
+    """
+    script = root / "scripts" / "train_hrnet.py"
+    if not script.exists():
+        print("[ERR] scripts/train_hrnet.py not found.")
+        print("Please check repository contents.")
+        print()
+        return
+
+    try:
+        rc = subprocess.call([sys.executable, str(script)])
+        if rc != 0:
+            print(f"[WARN] train_hrnet.py exited with code {rc}.")
+            print()
+    except Exception as exc:
+        print("[ERR] Cannot start train_hrnet.py:")
+        print(f"      {exc}")
+        print()
+
+
+def main() -> None:
+    root = get_landmark_root()
+    rows, _ = load_localities_status(root)
+
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
+    print("1) Train / Finetune model on MANUAL localities")
+    print("2) Autolabel locality with current model")
+    print("3) Review AUTO locality in annotator (set MANUAL by button)")
+    print("4) Info about current model / metrics")
+    print("5) Model settings\n")
+    print("0) Quit\n")
+
+    choice = input("Select action: ").strip()
+    print()  # spacer
+
+    # Информационный список локальностей под меню
+    print(format_localities_block(rows))
+
+    if choice == "0" or choice.upper() == "Q":
+        return
+    elif choice == "1":
+        run_train_manual(root)
+    elif choice == "4":
+        show_current_model_info(root)
+        input("Press Enter to exit...")
+    elif choice == "5":
+        show_model_settings(root)
+        input("Press Enter to exit...")
+    else:
+        print("This action is not implemented yet.")
+        print("Use option 5 to view settings.")
+        input("Press Enter to exit...")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $trainerPath -Value $trainerContent -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # === 4. Обновляем 1_ANNOTATOR.bat (добавляем init_structure + rebuild_localities_status) ===
+PS D:\GM\tools\2_Landmarking_v1.0> $annotPath = Join-Path $root "1_ANNOTATOR.bat"
+PS D:\GM\tools\2_Landmarking_v1.0> $annotContent = @'
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul
+
+rem ---- Paths ----
+set "HERE=%~dp0"
+for %%I in ("%HERE%\..\..") do set "ROOT=%%~fI"
+set "TOOL_DIR=%ROOT%\tools\2_Landmarking_v1.0"
+set "PHOTOS_DIR=%ROOT%\photos"
+set "LOG_DIR=%TOOL_DIR%\logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+
+rem ---- Localities base picker (Windows dialog) ----
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\choose_localities.ps1" -Silent
+if errorlevel 1 (
+    echo [WARN] Localities base picker failed or was cancelled.>>"%LOG_DIR%\annotator_last.log"
+    echo [WARN] Localities base picker failed or was cancelled. Using existing "%PHOTOS_DIR%".
+)
+
+rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt, if present ----
+set "CFG_DIR=%TOOL_DIR%\cfg"
+set "LAST_BASE=%CFG_DIR%\last_base.txt"
+if exist "%LAST_BASE%" (
+    set /p PHOTOS_DIR=<"%LAST_BASE%"
+)
+if not defined PHOTOS_DIR (
+    set "PHOTOS_DIR=%ROOT%\photos"
+)
+
+rem ---- Python resolver ----
+set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
+if not exist "%PY%" (
+    where.exe py >nul 2>&1 && (set "PY=py -3")
+)
+if /I "%PY%"=="py -3" (
+    py -3 -c "import sys" >nul 2>&1 || set "PY="
+)
+if not defined PY (
+    where.exe python >nul 2>&1 && (set "PY=python")
+)
+if not defined PY (
+    echo [ERR] Landmarking environment not found.>>"%LOG_DIR%\annotator_last.log"
+    echo [ERR] Landmarking environment not found.
+    echo Run 0_INSTALL_ENV.ps1.
+    pause
+    exit /b 1
+)
+
+title == GM Landmarking: Points Annotator v1.0 ==
+echo == GM Landmarking: Points Annotator v1.0 ==
+
+if not exist "%PHOTOS_DIR%" (
+    echo [ERR] Photos dir not found: %PHOTOS_DIR%
+    pause
+    exit /b 1
+)
+
+rem ---- Initialization: structure + localities status ----
+"%PY%" "%TOOL_DIR%\scripts\init_structure.py" 1>>"%LOG_DIR%\init_annotator_last.log" 2>&1
+"%PY%" "%TOOL_DIR%\scripts\rebuild_localities_status.py" 1>>"%LOG_DIR%\status_annotator_last.log" 2>&1
+
+rem ---- Menu ----
+echo.
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
+set /p CH=
+if /I "!CH!"=="Q" goto :EOF
+
+set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+
+if exist "!TMP_SEL!" (
+    set /p SEL_LOC=<"!TMP_SEL!"
+    del /q "!TMP_SEL!" 2>nul
+)
+
+if not defined SEL_LOC (
+    echo [ERR] Invalid selection.
+    echo See "%LOG_DIR%\menu_pick_last.err"
+    pause
+    exit /b 2
+)
+
+set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
+if not exist "!PNG_DIR!" (
+    echo [ERR] Locality path not found: !PNG_DIR!
+    pause
+    exit /b 2
+)
+
+rem ---- Find first PNG robustly (sorted)
+set "FIRST_PNG="
+for /f "usebackq delims=" %%F in (`dir /b /a-d "!PNG_DIR!\*.png" ^| sort`) do (
+    set "FIRST_PNG=%%F"
+    goto _fp_done
+)
+:_fp_done
+if not defined FIRST_PNG (
+    echo [ERR] No PNG files in !PNG_DIR!
+    pause
+    exit /b 3
+)
+
+rem ---- Auto Scale Wizard (no questions)
+if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
+    echo [INFO] No SCALE for "!FIRST_PNG!" -> starting Scale Wizard...
+    set "GUI_LOG=%LOG_DIR%\gui_scale_last.log"
+    %PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" --start-from "!FIRST_PNG!" --scale-wizard 1> "!GUI_LOG!" 2>&1
+    if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
+        echo [ERR] Scale file still missing after wizard.
+        echo See "!GUI_LOG!" below:
+        type "!GUI_LOG!" | more
+        pause
+    )
+)
+
+rem ---- Launch custom GUI (always)
+set "GUI_LOG=%LOG_DIR%\gui_run_last.log"
+%PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" 1> "!GUI_LOG!" 2>&1
+
+set "RC=%ERRORLEVEL%"
+if not "!RC!"=="0" (
+    echo [ERR] GUI exited with code !RC!. See "!GUI_LOG!" below:
+    type "!GUI_LOG!" | more
+    pause
+)
+
+exit /b 0
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $annotPath -Value $annotContent -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # === 5. Обновляем 2_TRAIN-INFER_HRNet.bat (добавляем init_structure + rebuild_localities_status) ===
+PS D:\GM\tools\2_Landmarking_v1.0> $trainBatPath = Join-Path $root "2_TRAIN-INFER_HRNet.bat"
+PS D:\GM\tools\2_Landmarking_v1.0> $trainBatContent = @'
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul
+
+rem ---- Paths ----
+set "HERE=%~dp0"
+for %%I in ("%HERE%\..\..") do set "ROOT=%%~fI"
+set "TOOL_DIR=%ROOT%\tools\2_Landmarking_v1.0"
+set "LOG_DIR=%TOOL_DIR%\logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+
+rem ---- Localities base picker (Windows dialog) ----
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOL_DIR%\scripts\choose_localities.ps1" -Silent
+if errorlevel 1 (
+    echo [WARN] Localities base picker failed or was cancelled.>>"%LOG_DIR%\trainer_last.log"
+    echo [WARN] Localities base picker failed or was cancelled.
+)
+
+rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt, if present ----
+set "CFG_DIR=%TOOL_DIR%\cfg"
+set "LAST_BASE=%CFG_DIR%\last_base.txt"
+set "PHOTOS_DIR="
+if exist "%LAST_BASE%" (
+    set /p PHOTOS_DIR=<"%LAST_BASE%"
+)
+if not defined PHOTOS_DIR (
+    echo [ERR] Localities base path not found in cfg\last_base.txt.>>"%LOG_DIR%\trainer_last.log"
+    echo [ERR] Localities base path not found in cfg\last_base.txt.
+    pause
+    exit /b 1
+)
+
+rem ---- Python resolver ----
+set "PY=%TOOL_DIR%\.venv_lm\Scripts\python.exe"
+if not exist "%PY%" (
+    where py >nul 2>&1 && (set "PY=py -3")
+)
+if /I "%PY%"=="py -3" (
+    py -3 -c "import sys" >nul 2>&1 || set "PY="
+)
+if not defined PY (
+    where python >nul 2>&1 && (set "PY=python")
+)
+if not defined PY (
+    echo [ERR] Landmarking environment not found.>>"%LOG_DIR%\trainer_last.log"
+    echo [ERR] Landmarking environment not found.
+    echo Run 0_INSTALL_ENV.ps1.
+    pause
+    exit /b 1
+)
+
+title == GM Landmarking: HRNet Trainer v1.0 ==
+echo == GM Landmarking: HRNet Trainer v1.0 ==
+
+rem ---- Initialization: structure + localities status ----
+"%PY%" "%TOOL_DIR%\scripts\init_structure.py" 1>>"%LOG_DIR%\init_trainer_last.log" 2>&1
+"%PY%" "%TOOL_DIR%\scripts\rebuild_localities_status.py" 1>>"%LOG_DIR%\status_trainer_last.log" 2>&1
+
+rem ---- Launch trainer menu (Python) ----
+"%PY%" "%TOOL_DIR%\scripts\trainer_menu.py" --root "%ROOT%"
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" (
+    echo [ERR] Trainer menu exited with code %RC%.
+    pause
+)
+
+endlocal
+exit /b 0
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $trainBatPath -Value $trainBatContent -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # === 6. Коммит и пуш на GitHub ===
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add scripts\init_structure.py scripts\trainer_menu.py 1_ANNOTATOR.bat 2_TRAIN-INFER_HRNet.bat
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Init structure + trainer menu action 1 wiring (per ТЗ_1.0)"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251114233741
+**********************

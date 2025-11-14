@@ -1342,3 +1342,6 @@
 [21:25:06] [SAVE] img_0021127.csv pts=17 OK
 [21:25:06] [LOAD] img_0011126.png pts=17/17 scale=False
 [21:25:08] [SAVE] img_0011126.csv pts=17 OK
+[23:22:18] [LOAD] img_001415.png pts=17/17 scale=False
+[23:22:22] [SAVE] img_001415.csv pts=17 OK
+[23:22:39] [LOAD] img_0011047.png pts=0/17 scale=True
