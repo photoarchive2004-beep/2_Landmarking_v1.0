@@ -125,7 +125,7 @@ if not exist "!PNG_DIR!\!FIRST_PNG!.scale.csv" (
 
 rem ---- Launch custom GUI (always)
 set "GUI_LOG=%LOG_DIR%\gui_run_last.log"
-%PY% "%TOOL_DIR%\annot_gui_custom.py" --root "%ROOT%" --images "!PNG_DIR!" 1> "!GUI_LOG!" 2>&1
+%PY% "%TOOL_DIR%\scripts\annotator_wrapper.py" --root "%ROOT%" --images "!PNG_DIR!" 1> "!GUI_LOG!" 2>&1
 
 set "RC=%ERRORLEVEL%"
 if not "!RC!"=="0" (
@@ -135,4 +135,5 @@ if not "!RC!"=="0" (
 )
 
 exit /b 0
+
 
