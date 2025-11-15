@@ -8,8 +8,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
-
+from typing import Any, Dict, List, Optional
 
 STATUS_FILE = "status/localities_status.csv"
 
@@ -26,6 +25,12 @@ class Locality:
 
 
 def get_landmark_root(arg_root: Optional[str]) -> Path:
+    """
+    Возвращаем корень модуля ландмаркинга.
+
+    Если root передан аргументом, используем его.
+    Иначе берём каталог на два уровня выше scripts/.
+    """
     if arg_root:
         return Path(arg_root).resolve()
     # tools/2_Landmarking_v1.0/scripts/trainer_menu.py -> tools/2_Landmarking_v1.0
@@ -46,6 +51,7 @@ def load_localities(landmark_root: Path) -> List[Locality]:
     status_path = landmark_root / STATUS_FILE
     if not status_path.exists():
         return []
+
     rows: List[Locality] = []
     with status_path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
@@ -58,6 +64,7 @@ def load_localities(landmark_root: Path) -> List[Locality]:
                 n_labeled = int(row.get("n_labeled", "") or 0)
             except ValueError:
                 n_labeled = 0
+
             rows.append(
                 Locality(
                     locality=row.get("locality", ""),
@@ -75,6 +82,7 @@ def load_localities(landmark_root: Path) -> List[Locality]:
 def save_localities(landmark_root: Path, localities: List[Locality]) -> None:
     status_path = landmark_root / STATUS_FILE
     status_path.parent.mkdir(parents=True, exist_ok=True)
+
     with status_path.open("w", encoding="utf-8", newline="") as f:
         fieldnames = [
             "locality",
@@ -121,11 +129,12 @@ def print_localities_block(localities: List[Locality]) -> None:
     print()
     print("Localities (photos/<locality>/png):")
     print()
+
     if not localities:
-        print("  (no localities found)")
+        print(" (no localities found)")
         return
 
-    # Выравнивание: аккуратные столбцы имени, статуса и счётчиков
+    # Аккуратные столбцы имени, статуса и счётчиков
     max_name = max((len(loc.locality) for loc in localities), default=0)
     name_width = max(max_name + 2, 24)  # минимум 24 символа
     count_width = 16
@@ -133,39 +142,46 @@ def print_localities_block(localities: List[Locality]) -> None:
     for idx, loc in enumerate(localities, start=1):
         percent = calc_percent(loc)
         status_text = format_status(loc)
-        # [N] + пробелы
-        prefix = f"[{idx}] "
-        name_part = f"{prefix}{loc.locality}".ljust(len(prefix) + name_width)
+
+        prefix = f"[{idx:2d}] "
+        name_part = f"{loc.locality}".ljust(name_width)
+        name_part = prefix + name_part
+
         count_part = f"[{loc.n_labeled}/{loc.n_images}] {percent:3d}%".ljust(count_width)
-        # статус в отдельном столбце
         status_col = status_text if status_text else ""
-        line = f"{name_part}{status_col:10s}{count_part}"
+
+        line = f"{name_part} {status_col:10s} {count_part}"
         print(line)
 
 
 def run_training(landmark_root: Path) -> None:
     localities = load_localities(landmark_root)
     manual_localities = [loc for loc in localities if loc.status == "MANUAL"]
+
     if not manual_localities:
         print()
-        print("No MANUAL localities found. Nothing to train on.")
+        print("No MANUAL localities found.")
+        print("Nothing to train on.")
         return
 
     train_script = landmark_root / "scripts" / "train_hrnet.py"
     if not train_script.exists():
         print()
-        print("[ERR] train_hrnet.py not found. Cannot start training.")
+        print("[ERR] train_hrnet.py not found.")
+        print("Cannot start training.")
         return
 
     print()
     print("=== HRNet training started (action 1: MANUAL localities) ===")
     print()
+
     cmd = [sys.executable, str(train_script)]
     try:
         subprocess.run(cmd, check=False)
     except Exception as exc:  # noqa: BLE001
         print(f"[ERR] Training failed: {exc}")
         return
+
     print("=== HRNet training finished ===")
 
 
@@ -173,13 +189,15 @@ def read_quality(landmark_root: Path) -> Dict[str, Any]:
     quality_path = landmark_root / "models" / "current" / "quality.json"
     if not quality_path.exists():
         return {}
+
     try:
-        data = json.loads(quality_path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return {}
-        return data
+        data: Any = json.loads(quality_path.read_text(encoding="utf-8"))
     except Exception:
         return {}
+
+    if not isinstance(data, dict):
+        return {}
+    return data
 
 
 def choose_autolabel_locality(localities: List[Locality]) -> Optional[Locality]:
@@ -187,11 +205,13 @@ def choose_autolabel_locality(localities: List[Locality]) -> Optional[Locality]:
     candidates: List[Locality] = [
         loc for loc in localities if loc.status in ("", "AUTO")
     ]
+
     print()
     print("Localities available for autolabel:")
     print()
+
     if not candidates:
-        print("  (no localities available – only MANUAL localities found)")
+        print(" (no localities available – only MANUAL localities found)")
         return None
 
     max_name = max((len(loc.locality) for loc in candidates), default=0)
@@ -201,26 +221,30 @@ def choose_autolabel_locality(localities: List[Locality]) -> Optional[Locality]:
         status_text = format_status(loc)
         status_block = status_text if status_text else ""
         print(
-            f"[{idx}] {loc.locality.ljust(name_width)}  "
-            f"{status_block:8s}  ({loc.n_images} imgs, {loc.n_labeled} csv)"
+            f"[{idx}] {loc.locality.ljust(name_width)} "
+            f"{status_block:8s} ({loc.n_images} imgs, {loc.n_labeled} csv)"
         )
 
     print()
+
     try:
         choice = input("Select locality number (or 0 to cancel): ").strip()
     except EOFError:
         return None
+
     if not choice:
         return None
     if not choice.isdigit():
         print("Please enter a number.")
         return None
+
     idx = int(choice)
     if idx <= 0:
         return None
     if idx > len(candidates):
         print("No such locality.")
         return None
+
     return candidates[idx - 1]
 
 
@@ -245,6 +269,7 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
 
     if base_localities is None:
         base_localities = read_last_base(landmark_root)
+
     if base_localities is None:
         print()
         print("Base localities folder is not set (cfg/last_base.txt is empty).")
@@ -265,11 +290,12 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
     infer_script = landmark_root / "scripts" / "infer_hrnet.py"
     if not infer_script.exists():
         print()
-        print("[ERR] infer_hrnet.py not found. Cannot run autolabel.")
+        print("[ERR] infer_hrnet.py not found.")
+        print("Cannot run autolabel.")
         return
 
     print()
-    print(f"=== Autolabel started for locality \"{loc.locality}\" ===")
+    print(f'=== Autolabel started for locality "{loc.locality}" ===')
     print()
 
     cmd = [
@@ -282,6 +308,7 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
         "--locality",
         loc.locality,
     ]
+
     try:
         result = subprocess.run(cmd, check=False)
     except Exception as exc:  # noqa: BLE001
@@ -308,6 +335,7 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
     quality = read_quality(landmark_root)
     auto_quality = ""
     run_id = ""
+
     if quality:
         try:
             pck_percent = int(round(float(quality.get("pck_r_percent", 0))))
@@ -330,6 +358,9 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
         print(f'Autolabel done for locality "{loc.locality}".')
         print("Status: AUTO")
 
+    print()
+    input("Press Enter to exit...")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -339,6 +370,7 @@ def main() -> None:
     args = parser.parse_args()
 
     landmark_root = get_landmark_root(args.root)
+
     base_localities: Optional[Path] = None
     base_arg = args.base_localities or args.base
     if base_arg:
@@ -356,6 +388,7 @@ def main() -> None:
     print()
     print("0) Quit")
     print()
+
     choice = input("Select action: ").strip()
 
     # После выбора действия показываем список локальностей (для информации)
@@ -363,11 +396,16 @@ def main() -> None:
 
     if choice == "1":
         run_training(landmark_root)
+        print()
+        input("Press Enter to exit...")
     elif choice == "2":
+        # run_autolabel сам в конце ждёт Enter
         run_autolabel(landmark_root, base_localities)
     elif choice == "3":
         print()
         print("Action 3 (Review AUTO) is not implemented yet in this version.")
+        print()
+        input("Press Enter to exit...")
     elif choice == "4":
         print()
         quality = read_quality(landmark_root)
@@ -378,20 +416,25 @@ def main() -> None:
             print()
             print(f"Run id: {quality.get('run_id', '')}")
             print("Model: HRNet-W32 (18 keypoints)")
+
             n_train = quality.get("n_train_images", 0)
             n_val = quality.get("n_val_images", 0)
             train_share = quality.get("train_share", 0)
             val_share = quality.get("val_share", 0)
+
             try:
                 train_percent = int(round(float(train_share) * 100))
             except Exception:
                 train_percent = 0
+
             try:
                 val_percent = int(round(float(val_share) * 100))
             except Exception:
                 val_percent = 0
+
             print(f"Train images: {n_train} ({train_percent}%)")
-            print(f"Val images:   {n_val} ({val_percent}%)")
+            print(f"Val images: {n_val} ({val_percent}%)")
+
             pck = quality.get("pck_r_percent", None)
             if pck is not None:
                 try:
@@ -400,10 +443,15 @@ def main() -> None:
                     pck_int = 0
                 print()
                 print(f"PCK@R (validation): {pck_int} %")
+
+        print()
+        input("Press Enter to exit...")
     elif choice == "5":
         print()
         print("Model settings are stored in config/hrnet_config.yaml.")
         print("Edit this file with a text editor to change training parameters.")
+        print()
+        input("Press Enter to exit...")
     else:
         # 0 или любая другая клавиша – просто выходим
         return
