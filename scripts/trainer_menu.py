@@ -805,6 +805,7 @@ def show_model_settings(landmark_root):
 
 
 
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", dest="root", default=None)
@@ -856,6 +857,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-
