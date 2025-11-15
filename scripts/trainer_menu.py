@@ -753,13 +753,19 @@ def main() -> None:
     choice = input("Select action: ").strip()
     print()  # spacer
 
-    # Информационный список локальностей под меню
+    # Информационный список локальностей под меню (только для информации)
     print(format_localities_block(rows))
 
     if choice == "0" or choice.upper() == "Q":
         return
     elif choice == "1":
         run_train_manual(root)
+        input("Press Enter to exit...")
+    elif choice == "2":
+        run_autolabel(root)
+        input("Press Enter to exit...")
+    elif choice == "3":
+        run_review_auto(root)
         input("Press Enter to exit...")
     elif choice == "4":
         show_current_model_info(root)
@@ -778,6 +784,10 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         sys.exit(0)
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
+
 
 
 
