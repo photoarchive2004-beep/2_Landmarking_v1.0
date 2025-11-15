@@ -854,3 +854,110 @@ def show_model_settings(landmark_root):
     print("  3) Save the file. New training runs will automatically use the new settings.")
     print("  Do not change parameter NAMES, only their VALUES.")
 
+
+
+
+# === GM Landmarking: show_model_settings (auto-added) ===
+def show_model_settings(landmark_root):
+    """
+    Print HRNet/MMPose training settings from config/hrnet_config.yaml
+    in a simple, user-friendly way (including crop margins).
+    """
+    import pathlib
+    import yaml  # type: ignore
+
+    root = pathlib.Path(landmark_root)
+    cfg_path = root / "config" / "hrnet_config.yaml"
+
+    print()
+    print("=== Model settings (config/hrnet_config.yaml) ===")
+
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        print(f"Config file not found: {cfg_path}")
+        print("It will be created automatically on the next run.")
+        return
+    except Exception as e:
+        print(f"Error reading config file: {e}")
+        return
+
+    def show_one(name, default, description_lines):
+        value = cfg.get(name, default)
+        print(f"{name} = {value}")
+        for line in description_lines:
+            print(f"  - {line}")
+        print()
+
+    # === Standard parameters from the spec ===
+    show_one("model_type", "hrnet_w32", [
+        "HRNet backbone type. W32 is a good default."
+    ])
+
+    show_one("input_size", 1024, [
+        "Target size of the LONG side of the image in pixels.",
+        "The image is resized keeping aspect ratio (no stretching)."
+    ])
+
+    show_one("resize_mode", "resize", [
+        "\"resize\": scale images to match input_size.",
+        "\"original\": keep original image resolution (only safe changes)."
+    ])
+
+    show_one("keep_aspect_ratio", True, [
+        "Keep the original shape of the fish, no stretching by one axis."
+    ])
+
+    show_one("batch_size", 2, [
+        "How many images are processed in one training step.",
+        "Bigger batch uses more GPU memory."
+    ])
+
+    show_one("learning_rate", 0.0005, [
+        "How fast the model learns."
+    ])
+
+    show_one("max_epochs", 150, [
+        "Maximum number of passes through the training data."
+    ])
+
+    show_one("train_val_split", 0.9, [
+        "Part of data used for training. 0.9 = 90% train, 10% validation."
+    ])
+
+    show_one("flip_augmentation", True, [
+        "Random horizontal flip of images during training."
+    ])
+
+    show_one("rotation_augmentation_deg", 15, [
+        "Maximum random rotation in degrees."
+    ])
+
+    show_one("scale_augmentation", 0.3, [
+        "Random zoom in/out up to this fraction (0.3 = 30%)."
+    ])
+
+    show_one("weight_decay", 0.0001, [
+        "Regularization to reduce overfitting."
+    ])
+
+    # === New crop margins around landmarks ===
+    show_one("crop_margin_x_percent", 0.15, [
+        "Extra space LEFT and RIGHT of the landmarks bounding box.",
+        "Value is a fraction of bbox width for each side.",
+        "Example: 0.15 -> +15% bbox width on the left and +15% on the right."
+    ])
+
+    show_one("crop_margin_y_percent", 0.5, [
+        "Extra space ABOVE and BELOW the landmarks bounding box.",
+        "Value is a fraction of bbox height for each side.",
+        "Example: 0.5 -> +50% bbox height above and +50% below."
+    ])
+
+    print("To change these values:")
+    print("  1) Open file \"config/hrnet_config.yaml\" in a text editor (for example Notepad).")
+    print("  2) Change numbers or true/false values.")
+    print("  3) Save the file.")
+    print("New training runs will automatically use the new settings.")
+    print("Do not change parameter names, only their values.")
