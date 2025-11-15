@@ -3,6 +3,7 @@
 import argparse
 import csv
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -10,7 +11,28 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+try:
+    import yaml  # type: ignore
+except ImportError:  # pragma: no cover
+    yaml = None
+
+
 STATUS_FILE = "status/localities_status.csv"
+
+CONFIG_DEFAULTS: Dict[str, Any] = {
+    "model_type": "hrnet_w32",
+    "input_size": 256,
+    "resize_mode": "resize",
+    "keep_aspect_ratio": True,
+    "batch_size": 8,
+    "learning_rate": 0.0005,
+    "max_epochs": 100,
+    "train_val_split": 0.9,
+    "flip_augmentation": True,
+    "rotation_augmentation_deg": 15,
+    "scale_augmentation": 0.3,
+    "weight_decay": 0.0001,
+}
 
 
 @dataclass
@@ -25,15 +47,9 @@ class Locality:
 
 
 def get_landmark_root(arg_root: Optional[str]) -> Path:
-    """
-    Возвращаем корень модуля ландмаркинга.
-
-    Если root передан аргументом, используем его.
-    Иначе берём каталог на два уровня выше scripts/.
-    """
-    if arg_root:
-        return Path(arg_root).resolve()
-    # tools/2_Landmarking_v1.0/scripts/trainer_menu.py -> tools/2_Landmarking_v1.0
+    """Return landmark module root (tools/2_Landmarking_v1.0)."""
+    # Всегда берём папку на два уровня выше scripts/, как в ТЗ_1.0.
+    # Аргумент --root игнорируем, чтобы не уезжать в D:\GM и т.п.
     return Path(__file__).resolve().parent.parent
 
 
@@ -154,6 +170,21 @@ def print_localities_block(localities: List[Locality]) -> None:
         print(line)
 
 
+def read_quality(landmark_root: Path) -> Dict[str, Any]:
+    quality_path = landmark_root / "models" / "current" / "quality.json"
+    if not quality_path.exists():
+        return {}
+
+    try:
+        data: Any = json.loads(quality_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+    if not isinstance(data, dict):
+        return {}
+    return data
+
+
 def run_training(landmark_root: Path) -> None:
     localities = load_localities(landmark_root)
     manual_localities = [loc for loc in localities if loc.status == "MANUAL"]
@@ -177,27 +208,15 @@ def run_training(landmark_root: Path) -> None:
 
     cmd = [sys.executable, str(train_script)]
     try:
-        subprocess.run(cmd, check=False)
+        result = subprocess.run(cmd, check=False)
     except Exception as exc:  # noqa: BLE001
         print(f"[ERR] Training failed: {exc}")
         return
 
+    if result.returncode != 0:
+        print(f"[WARN] train_hrnet.py exited with code {result.returncode}.")
+
     print("=== HRNet training finished ===")
-
-
-def read_quality(landmark_root: Path) -> Dict[str, Any]:
-    quality_path = landmark_root / "models" / "current" / "quality.json"
-    if not quality_path.exists():
-        return {}
-
-    try:
-        data: Any = json.loads(quality_path.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
-
-    if not isinstance(data, dict):
-        return {}
-    return data
 
 
 def choose_autolabel_locality(localities: List[Locality]) -> Optional[Locality]:
@@ -255,7 +274,7 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
         print("No localities found in status/localities_status.csv.")
         return
 
-    # Проверяем, есть ли обученная модель
+    # Проверяем, что есть обученная модель
     model_path = landmark_root / "models" / "current" / "hrnet_best.pth"
     if not model_path.exists():
         print()
@@ -362,6 +381,332 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
     input("Press Enter to exit...")
 
 
+def choose_auto_locality(localities: List[Locality]) -> Optional[Locality]:
+    auto_localities = [loc for loc in localities if loc.status == "AUTO"]
+
+    print()
+    print("AUTO localities:")
+    print()
+
+    if not auto_localities:
+        print(" (no AUTO localities found)")
+        return None
+
+    max_name = max((len(loc.locality) for loc in auto_localities), default=0)
+    name_width = max(max_name + 2, 24)
+
+    for idx, loc in enumerate(auto_localities, start=1):
+        status_text = format_status(loc)
+        print(
+            f"[{idx}] {loc.locality.ljust(name_width)} "
+            f"{status_text:8s} ({loc.n_images} imgs, {loc.n_labeled} csv)"
+        )
+
+    print()
+
+    try:
+        choice = input("Select locality to review (or 0 to cancel): ").strip()
+    except EOFError:
+        return None
+
+    if not choice:
+        return None
+    if not choice.isdigit():
+        print("Please enter a number.")
+        return None
+
+    idx = int(choice)
+    if idx <= 0:
+        return None
+    if idx > len(auto_localities):
+        print("No such locality.")
+        return None
+
+    return auto_localities[idx - 1]
+
+
+def run_review_auto(landmark_root: Path) -> None:
+    localities = load_localities(landmark_root)
+    if not localities:
+        print()
+        print("No localities found in status/localities_status.csv.")
+        print()
+        input("Press Enter to exit...")
+        return
+
+    loc = choose_auto_locality(localities)
+    if not loc:
+        print()
+        input("Press Enter to exit...")
+        return
+
+    annotator_bat = landmark_root / "1_ANNOTATOR.bat"
+    if not annotator_bat.exists():
+        print()
+        print("[ERR] 1_ANNOTATOR.bat not found in module root.")
+        print()
+        input("Press Enter to exit...")
+        return
+
+    flag_dir = landmark_root / "status"
+    flag_dir.mkdir(parents=True, exist_ok=True)
+    flag_path = flag_dir / f"review_done_{loc.locality}.flag"
+
+    # Старый флаг на всякий случай удаляем
+    try:
+        if flag_path.exists():
+            flag_path.unlink()
+    except Exception:
+        pass
+
+    print()
+    print(f'Launching annotator for locality "{loc.locality}" in REVIEW_AUTO mode...')
+    print("Close annotator when review is finished.")
+    print()
+
+    env = os.environ.copy()
+    env["GM_LOCALITY"] = loc.locality
+    env["GM_MODE"] = "REVIEW_AUTO"
+
+    try:
+        subprocess.run(
+            ["cmd", "/c", str(annotator_bat)],
+            check=False,
+            env=env,
+        )
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERR] Failed to launch annotator: {exc}")
+        print()
+        input("Press Enter to exit...")
+        return
+
+    # После выхода аннотатора проверяем флаг
+    if flag_path.exists():
+        # Переводим локальность в MANUAL
+        loc.status = "MANUAL"
+        loc.auto_quality = ""
+        loc.last_update = datetime.now().isoformat(timespec="seconds")
+
+        save_localities(landmark_root, localities)
+
+        try:
+            flag_path.unlink()
+        except Exception:
+            pass
+
+        print()
+        print(f'Locality "{loc.locality}" marked as MANUAL (after review).')
+    else:
+        print()
+        print("Review was not finished (no flag file found).")
+        print(f'Locality "{loc.locality}" remains {format_status(loc) or "(no status)"}.')
+
+    print()
+    input("Press Enter to exit...")
+
+
+def show_model_info(landmark_root: Path) -> None:
+    print()
+    quality = read_quality(landmark_root)
+    if not quality:
+        print("Model is not trained yet (models/current/quality.json not found).")
+        print()
+        input("Press Enter to exit...")
+        return
+
+    print("Current model info:")
+    print()
+
+    run_id = quality.get("run_id", "")
+    print(f"Run id: {run_id}")
+    print("Model: HRNet-W32 (18 keypoints)")
+
+    n_train = quality.get("n_train_images", 0)
+    n_val = quality.get("n_val_images", 0)
+    train_share = quality.get("train_share", 0)
+    val_share = quality.get("val_share", 0)
+
+    try:
+        train_percent = int(round(float(train_share) * 100))
+    except Exception:
+        train_percent = 0
+
+    try:
+        val_percent = int(round(float(val_share) * 100))
+    except Exception:
+        val_percent = 0
+
+    print()
+    print(f"Train images: {n_train} ({train_percent}%)")
+    print(f"Val images:   {n_val}  ({val_percent}%)")
+
+    pck = quality.get("pck_r_percent", None)
+    if pck is not None:
+        try:
+            pck_int = int(round(float(pck)))
+        except Exception:
+            pck_int = 0
+        print()
+        print(f"PCK@R (validation): {pck_int} %")
+
+    used_manual = quality.get("n_manual_localities", None)
+    if used_manual is not None:
+        try:
+            used_manual_int = int(used_manual)
+        except Exception:
+            used_manual_int = None
+        if used_manual_int is not None:
+            print()
+            print(f"Used MANUAL localities: {used_manual_int}")
+
+    print()
+    input("Press Enter to exit...")
+
+
+def load_or_create_config(landmark_root: Path) -> Dict[str, Any]:
+    cfg_dir = landmark_root / "config"
+    cfg_dir.mkdir(parents=True, exist_ok=True)
+    cfg_path = cfg_dir / "hrnet_config.yaml"
+
+    cfg: Dict[str, Any] = dict(CONFIG_DEFAULTS)
+
+    if yaml is None:
+        # Нет PyYAML – просто гарантируем существование файла с простым форматом
+        if not cfg_path.exists():
+            with cfg_path.open("w", encoding="utf-8") as f:
+                for key, value in CONFIG_DEFAULTS.items():
+                    f.write(f"{key}: {value}\n")
+        return cfg
+
+    if cfg_path.exists():
+        try:
+            data = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            if isinstance(data, dict):
+                cfg.update(data)
+        except Exception:
+            # Если парсинг не удался – перезапишем дефолтами
+            cfg = dict(CONFIG_DEFAULTS)
+
+    # Сохраняем обратно (чтобы все дефолты точно были в файле)
+    try:
+        with cfg_path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+    except Exception:
+        pass
+
+    return cfg
+
+
+def show_model_settings(landmark_root: Path) -> None:
+    cfg = load_or_create_config(landmark_root)
+
+    print()
+    print("=== Model settings (config/hrnet_config.yaml) ===")
+    print()
+
+    def show_param(name: str, description_lines: List[str]) -> None:
+        value = cfg.get(name)
+        print(f"{name} = {repr(value)}")
+        for line in description_lines:
+            print(f"  - {line}")
+        print()
+
+    show_param(
+        "model_type",
+        [
+            'HRNet backbone type. "hrnet_w32" is a good default.',
+        ],
+    )
+
+    show_param(
+        "input_size",
+        [
+            "Target input size for the network in pixels.",
+            'If resize_mode = "resize": images are scaled to this size.',
+            'If input_size = 0 and resize_mode = "original": use original image size.',
+        ],
+    )
+
+    show_param(
+        "resize_mode",
+        [
+            '"resize": scale images to input_size.',
+            '"original": do not rescale images, keep original resolution.',
+        ],
+    )
+
+    show_param(
+        "keep_aspect_ratio",
+        [
+            "If True: keep aspect ratio, add padding if needed.",
+            "If False: image can be stretched to fit target size.",
+        ],
+    )
+
+    show_param(
+        "batch_size",
+        [
+            "How many images are processed in one training batch.",
+            "Bigger batch uses more GPU memory.",
+        ],
+    )
+
+    show_param(
+        "learning_rate",
+        [
+            "Main learning rate for optimizer.",
+            "Too high can break training, too low makes it very slow.",
+        ],
+    )
+
+    show_param(
+        "max_epochs",
+        [
+            "Maximum number of training epochs.",
+            "One epoch = full pass over the training dataset.",
+        ],
+    )
+
+    show_param(
+        "train_val_split",
+        [
+            "Fraction of data used for training.",
+            "The rest is used for validation (quality check).",
+        ],
+    )
+
+    show_param(
+        "flip_augmentation",
+        [
+            "If True: random horizontal flips during training.",
+        ],
+    )
+
+    show_param(
+        "rotation_augmentation_deg",
+        [
+            "Maximum rotation angle in degrees for random rotations.",
+        ],
+    )
+
+    show_param(
+        "scale_augmentation",
+        [
+            "Random scale factor for zoom-in / zoom-out.",
+        ],
+    )
+
+    show_param(
+        "weight_decay",
+        [
+            "L2 regularization strength (helps prevent overfitting).",
+        ],
+    )
+
+    print()
+    input("Press Enter to exit...")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", dest="root", default=None)
@@ -399,61 +744,15 @@ def main() -> None:
         print()
         input("Press Enter to exit...")
     elif choice == "2":
-        # run_autolabel сам в конце ждёт Enter
         run_autolabel(landmark_root, base_localities)
     elif choice == "3":
-        print()
-        print("Action 3 (Review AUTO) is not implemented yet in this version.")
-        print()
-        input("Press Enter to exit...")
+        run_review_auto(landmark_root)
     elif choice == "4":
-        print()
-        quality = read_quality(landmark_root)
-        if not quality:
-            print("Model is not trained yet (models/current/quality.json not found).")
-        else:
-            print("Current model info:")
-            print()
-            print(f"Run id: {quality.get('run_id', '')}")
-            print("Model: HRNet-W32 (18 keypoints)")
-
-            n_train = quality.get("n_train_images", 0)
-            n_val = quality.get("n_val_images", 0)
-            train_share = quality.get("train_share", 0)
-            val_share = quality.get("val_share", 0)
-
-            try:
-                train_percent = int(round(float(train_share) * 100))
-            except Exception:
-                train_percent = 0
-
-            try:
-                val_percent = int(round(float(val_share) * 100))
-            except Exception:
-                val_percent = 0
-
-            print(f"Train images: {n_train} ({train_percent}%)")
-            print(f"Val images: {n_val} ({val_percent}%)")
-
-            pck = quality.get("pck_r_percent", None)
-            if pck is not None:
-                try:
-                    pck_int = int(round(float(pck)))
-                except Exception:
-                    pck_int = 0
-                print()
-                print(f"PCK@R (validation): {pck_int} %")
-
-        print()
-        input("Press Enter to exit...")
+        show_model_info(landmark_root)
     elif choice == "5":
-        print()
-        print("Model settings are stored in config/hrnet_config.yaml.")
-        print("Edit this file with a text editor to change training parameters.")
-        print()
-        input("Press Enter to exit...")
+        show_model_settings(landmark_root)
     else:
-        # 0 или любая другая клавиша – просто выходим
+        # 0 или что-то другое – просто выходим
         return
 
 
