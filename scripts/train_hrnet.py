@@ -34,7 +34,7 @@ except ImportError:  # pragma: no cover
 class HRNetConfig:
     model_type: str = "hrnet_w32"
     input_size: int = 256
-    resize_mode: str = "resize"  # "resize" or "original"
+    resize_mode: str = "resize"  # "resize" или "original"
     keep_aspect_ratio: bool = True
     batch_size: int = 8
     learning_rate: float = 5e-4
@@ -44,6 +44,7 @@ class HRNetConfig:
     rotation_augmentation_deg: float = 15.0
     scale_augmentation: float = 0.3
     weight_decay: float = 1e-4
+    heatmap_sigma_px: float = 2.5
 
 
 def get_landmark_root() -> Path:
@@ -536,7 +537,7 @@ def train_model(
 
             optimizer.zero_grad()
             _, _, H, W = imgs.shape
-            gt_heatmaps = keypoints_to_heatmaps(kps, H, W, sigma=2.0, device=device)
+            gt_heatmaps = keypoints_to_heatmaps(kps, H, W, sigma=float(getattr(cfg, "heatmap_sigma_px", 2.0)), device=device)
             pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
             loss.backward()
@@ -723,4 +724,5 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

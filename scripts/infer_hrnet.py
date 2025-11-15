@@ -39,6 +39,7 @@ class HRNetConfig:
     rotation_augmentation_deg: float = 15.0
     scale_augmentation: float = 0.3
     weight_decay: float = 1e-4
+    heatmap_sigma_px: float = 2.5
 
 
 def get_landmark_root() -> Path:
@@ -303,4 +304,5 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 

@@ -1,3 +1,4 @@
 [2025-11-15 23:20:00] Updated hrnet_config.yaml: num_keypoints is now read from LM_number.txt (per TZ_V2).
 [2025-11-15 23:26:50] Added scripts/hrnet_config_utils.py (LM_number + hrnet_config.yaml helper, per TZ_V2).
 [2025-11-16 00:55:36] Update train_hrnet.py and infer_hrnet.py: load_yaml_config now maps resize_long_side -> input_size (TZ_V2).
+[2025-11-16 01:05:13] Update HRNetConfig in train/infer: add heatmap_sigma_px and use it in training (per TZ_V2).
