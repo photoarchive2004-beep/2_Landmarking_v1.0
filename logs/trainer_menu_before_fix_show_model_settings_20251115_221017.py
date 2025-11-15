@@ -582,34 +582,25 @@ def show_model_settings(landmark_root):
     Print HRNet/MMPose training settings from config/hrnet_config.yaml
     in a simple, user-friendly way (including crop margins).
     """
-    from pathlib import Path
+    import pathlib
+    import yaml  # type: ignore
 
-    root = Path(landmark_root)
+    root = pathlib.Path(landmark_root)
     cfg_path = root / "config" / "hrnet_config.yaml"
 
     print()
     print("=== Model settings (config/hrnet_config.yaml) ===")
 
-    # Load config safely: if PyYAML is missing or file is broken,
-    # fall back to built-in defaults from CONFIG_DEFAULTS.
-    if yaml is None:
-        print("PyYAML is not installed in this environment.")
-        print("Using default values from CONFIG_DEFAULTS.")
-        cfg = dict(CONFIG_DEFAULTS)
-    else:
-        try:
-            if cfg_path.exists():
-                with cfg_path.open("r", encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f) or {}
-            else:
-                print("Config file 'config/hrnet_config.yaml' not found.")
-                print("It will be created automatically when you run the trainer.")
-                cfg = dict(CONFIG_DEFAULTS)
-        except Exception as exc:
-            print("Error reading config/hrnet_config.yaml:")
-            print(f"  {exc}")
-            print("Using default values from CONFIG_DEFAULTS.")
-            cfg = dict(CONFIG_DEFAULTS)
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        print(f"Config file not found: {cfg_path}")
+        print("It will be created automatically on the next run.")
+        return
+    except Exception as e:
+        print(f"Error reading config file: {e}")
+        return
 
     def show_one(name, default, description_lines):
         value = cfg.get(name, default)
@@ -618,24 +609,23 @@ def show_model_settings(landmark_root):
             print(f"  - {line}")
         print()
 
-    # === Basic HRNet training params ===
+    # === Standard parameters from the spec ===
     show_one("model_type", "hrnet_w32", [
-        "HRNet backbone type. 'hrnet_w32' is a good default."
+        "HRNet backbone type. W32 is a good default."
     ])
 
-    show_one("input_size", 1280, [
-        "Target size for the LONG side of the image in pixels.",
-        "The image is resized keeping aspect ratio (no stretching, no black borders)."
+    show_one("input_size", 1024, [
+        "Target size of the LONG side of the image in pixels.",
+        "The image is resized keeping aspect ratio (no stretching)."
     ])
 
     show_one("resize_mode", "resize", [
-        "'resize': rescale images so that the long side = input_size.",
-        "'original': keep original resolution (only safe changes)."
+        "\"resize\": scale images to match input_size.",
+        "\"original\": keep original image resolution (only safe changes)."
     ])
 
     show_one("keep_aspect_ratio", True, [
-        "If True: image proportions are always preserved.",
-        "This MUST stay True for geometric morphometrics."
+        "Keep the original shape of the fish, no stretching by one axis."
     ])
 
     show_one("batch_size", 2, [
@@ -656,16 +646,15 @@ def show_model_settings(landmark_root):
     ])
 
     show_one("flip_augmentation", True, [
-        "If True: random horizontal flips during training."
+        "Random horizontal flip of images during training."
     ])
 
     show_one("rotation_augmentation_deg", 15, [
-        "Maximum random rotation angle in degrees during training."
+        "Maximum random rotation in degrees."
     ])
 
     show_one("scale_augmentation", 0.3, [
-        "Random scaling of images during training.",
-        "0.3 means up to ±30% size change."
+        "Random zoom in/out up to this fraction (0.3 = 30%)."
     ])
 
     show_one("weight_decay", 0.0001, [
@@ -675,22 +664,25 @@ def show_model_settings(landmark_root):
     # === New crop margins around landmarks ===
     show_one("crop_margin_x_percent", 0.15, [
         "Extra space LEFT and RIGHT of the landmarks bounding box.",
-        "Value is a fraction of bbox width for EACH side.",
+        "Value is a fraction of bbox width for each side.",
         "Example: 0.15 -> +15% bbox width on the left and +15% on the right."
     ])
 
     show_one("crop_margin_y_percent", 0.5, [
         "Extra space ABOVE and BELOW the landmarks bounding box.",
-        "Value is a fraction of bbox height for EACH side.",
+        "Value is a fraction of bbox height for each side.",
         "Example: 0.5 -> +50% bbox height above and +50% below."
     ])
 
     print("To change these values:")
-    print('  1) Open file "config/hrnet_config.yaml" in a text editor (for example Notepad).')
+    print("  1) Open file \"config/hrnet_config.yaml\" in a text editor (for example Notepad).")
     print("  2) Change numbers or true/false values.")
     print("  3) Save the file.")
     print("New training runs will automatically use the new settings.")
     print("Do not change parameter names, only their values.")
+
+
+
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -743,4 +735,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
