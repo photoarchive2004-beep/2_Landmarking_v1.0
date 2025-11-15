@@ -2,11 +2,12 @@
 
 import argparse
 import csv
+import os
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional
 
 import numpy as np
 from PIL import Image
@@ -16,7 +17,7 @@ try:
     from torch import nn
 except ImportError:  # pragma: no cover
     torch = None
-    nn = None
+    nn = None  # type: ignore[assignment]
 
 try:
     import yaml
@@ -26,7 +27,6 @@ except ImportError:  # pragma: no cover
 
 @dataclass
 class HRNetConfig:
-    # Те же поля, что и в train_hrnet.py
     model_type: str = "hrnet_w32"
     input_size: int = 256
     resize_mode: str = "resize"
@@ -47,7 +47,7 @@ def get_landmark_root() -> Path:
 
 def load_yaml_config(cfg_path: Path) -> HRNetConfig:
     cfg = HRNetConfig()
-    if yaml is None or not cfg_path.is_file():
+    if not cfg_path.is_file() or yaml is None:
         return cfg
     with cfg_path.open("r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -58,98 +58,60 @@ def load_yaml_config(cfg_path: Path) -> HRNetConfig:
 
 
 def read_lm_number(root: Path) -> int:
-    lm_file = root / "LM_number.txt"
+    lm_path = root / "LM_number.txt"
     try:
-        txt = lm_file.read_text(encoding="utf-8").strip()
-        return int(txt)
+        with lm_path.open("r", encoding="utf-8") as f:
+            line = f.readline().strip()
+        n = int(line)
+        if n <= 0:
+            raise ValueError
+        return n
     except Exception:
-        return 0
+        return -1
 
 
 def read_last_base(root: Path) -> Optional[Path]:
-    cfg_file = root / "cfg" / "last_base.txt"
-    if not cfg_file.is_file():
+    base_txt = root / "cfg" / "last_base.txt"
+    if not base_txt.is_file():
         return None
-    txt = cfg_file.read_text(encoding="utf-8").strip()
+    txt = base_txt.read_text(encoding="utf-8").strip()
     if not txt:
         return None
-    p = Path(txt)
-    return p if p.is_dir() else None
+    base = Path(txt)
+    if not base.is_dir():
+        return None
+    return base
 
 
-def _resize_and_pad(img: Image.Image, cfg: HRNetConfig) -> Tuple[Image.Image, float, float, float]:
+def _resize_and_pad(
+    img: Image.Image,
+    cfg: HRNetConfig,
+) -> Tuple[Image.Image, float, int, int]:
     """
-    Та же логика ресайза, что и в train_hrnet.py: даунскейл + паддинг.
-    Возвращаем:
-    - изображение,
-    - scale (во сколько раз уменьшили),
-    - offset_x, offset_y (сколько пикселей добавили слева/сверху).
+    Ресайз с сохранением пропорций и паддингом до квадрата input_size x input_size.
+    Возвращает (новое_изображение, scale, offset_x, offset_y).
     """
-    input_size = int(cfg.input_size)
-    if input_size <= 0:
-        w, h = img.size
-        return img, 1.0, 0.0, 0.0
-
     w, h = img.size
-    if max(w, h) == 0:
-        return img, 1.0, 0.0, 0.0
+    if cfg.resize_mode == "original" or cfg.input_size <= 0:
+        return img, 1.0, 0, 0
 
-    scale = min(1.0, float(input_size) / float(max(w, h)))
-    new_w = int(round(w * scale))
-    new_h = int(round(h * scale))
-    img_resized = img
-    if scale != 1.0:
-        img_resized = img.resize((new_w, new_h), Image.BILINEAR)
+    target = int(cfg.input_size)
+    if target <= 0:
+        return img, 1.0, 0, 0
 
-    canvas = Image.new("RGB", (input_size, input_size), (0, 0, 0))
-    offset_x = (input_size - new_w) // 2
-    offset_y = (input_size - new_h) // 2
-    canvas.paste(img_resized, (offset_x, offset_y))
-    return canvas, scale, float(offset_x), float(offset_y)
+    scale = min(target / float(w), target / float(h))
+    new_w = max(1, int(round(w * scale)))
+    new_h = max(1, int(round(h * scale)))
+    resized = img.resize((new_w, new_h), Image.BILINEAR)
 
-
-class SimpleHRNet(nn.Module):
-    """
-    Точно такой же бэкбон, как в train_hrnet.py (SimpleHRNet),
-    чтобы успешно загрузить hrnet_best.pth.
-    """
-
-    def __init__(self, num_keypoints: int) -> None:
-        super().__init__()
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-        )
-        blocks = []
-        in_channels = 64
-        for _ in range(3):
-            block = nn.Sequential(
-                nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(in_channels),
-                nn.ReLU(inplace=True),
-                nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
-                nn.BatchNorm2d(in_channels),
-            )
-            blocks.append(block)
-        self.blocks = nn.ModuleList(blocks)
-        self.relu = nn.ReLU(inplace=True)
-        self.head = nn.Conv2d(64, num_keypoints, kernel_size=1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.stem(x)
-        for block in self.blocks:
-            residual = x
-            out = block(x)
-            x = self.relu(out + residual)
-        heatmaps = self.head(x)
-        return heatmaps
+    canvas = Image.new("RGB", (target, target), (0, 0, 0))
+    offset_x = (target - new_w) // 2
+    offset_y = (target - new_h) // 2
+    canvas.paste(resized, (offset_x, offset_y))
+    return canvas, scale, offset_x, offset_y
 
 
-def heatmaps_to_keypoints(heatmaps: torch.Tensor) -> torch.Tensor:
+def heatmaps_to_keypoints(heatmaps: "torch.Tensor") -> "torch.Tensor":
     """
     Из теплокарт получаем координаты максимумов.
     """
@@ -162,42 +124,107 @@ def heatmaps_to_keypoints(heatmaps: torch.Tensor) -> torch.Tensor:
     return kps
 
 
+# Модель должна совпадать с train_hrnet.py
+if torch is not None:
+
+    class SimpleHRNet(nn.Module):
+        def __init__(self, num_keypoints: int) -> None:
+            super().__init__()
+            self.stem = nn.Sequential(
+                nn.Conv2d(3, 32, kernel_size=3, padding=1),
+                nn.BatchNorm2d(32),
+                nn.ReLU(inplace=True),
+                nn.Conv2d(32, 64, kernel_size=3, padding=1),
+                nn.BatchNorm2d(64),
+                nn.ReLU(inplace=True),
+            )
+            blocks = []
+            in_channels = 64
+            for _ in range(3):
+                block = nn.Sequential(
+                    nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
+                    nn.BatchNorm2d(in_channels),
+                    nn.ReLU(inplace=True),
+                    nn.Conv2d(in_channels, in_channels, kernel_size=3, padding=1),
+                    nn.BatchNorm2d(in_channels),
+                )
+                blocks.append(block)
+            self.blocks = nn.ModuleList(blocks)
+            self.relu = nn.ReLU(inplace=True)
+            self.head = nn.Conv2d(64, num_keypoints, kernel_size=1)
+
+        def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+            x = self.stem(x)
+            for block in self.blocks:
+                residual = x
+                out = block(x)
+                x = self.relu(out + residual)
+            heatmaps = self.head(x)
+            return heatmaps
+
+else:
+
+    class SimpleHRNet:  # type: ignore[misc]
+        def __init__(self, num_keypoints: int) -> None:  # pragma: no cover
+            raise RuntimeError("PyTorch is required for SimpleHRNet but is not installed.")
+
+
+def _write_dummy_csv(csv_path: Path, num_keypoints: int) -> None:
+    """
+    Записываем CSV с нужным числом строк x,y = 0,0.
+    Используется в заглушках, если нет модели или torch.
+    """
+    with csv_path.open("w", encoding="utf-8", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["x", "y"])
+        for _ in range(num_keypoints):
+            writer.writerow([0, 0])
+
+
 def infer_for_locality(
     root: Path,
     base_dir: Path,
     locality: str,
-    cfg: HRNetConfig,
     num_keypoints: int,
-    model_path: Path,
-    log_fn,
+    cfg: HRNetConfig,
 ) -> None:
     """
-    Автолейблинг одной локальности: пробегаем все PNG и сохраняем CSV с (x,y).
+    Автолейблинг одной локальности.
     """
-    loc_dir = base_dir / locality / "png"
-    if not loc_dir.is_dir():
-        log_fn(f"[WARN] Не найдена папка локальности: {loc_dir}")
+    png_dir = base_dir / locality / "png"
+    if not png_dir.is_dir():
+        print(f"[ERR] Папка с изображениями не найдена: {png_dir}")
         return
 
-    if torch is None:
-        log_fn("[ERR] PyTorch не установлен. Инференс невозможен.")
+    models_current = root / "models" / "current"
+    model_path = models_current / "hrnet_best.pth"
+
+    # Ветка без torch или без модели: честная заглушка
+    if torch is None or not model_path.is_file():
+        if torch is None:
+            print("[WARN] PyTorch не установлен. Создаём CSV с нулевыми координатами (заглушка).")
+        else:
+            print("[WARN] Файл модели models/current/hrnet_best.pth не найден. Создаём CSV с нулевыми координатами (заглушка).")
+
+        for img_path in sorted(png_dir.glob("*.png")):
+            csv_path = img_path.with_suffix(".csv")
+            _write_dummy_csv(csv_path, num_keypoints)
         return
 
+    # Реальный инференс
+    assert torch is not None
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    log_fn(f"[INFO] Устройство: {device} для локальности {locality}")
+    print(f"[INFO] Загружаем модель для инференса: {model_path} (device={device})")
 
     model = SimpleHRNet(num_keypoints=num_keypoints)
     state = torch.load(model_path, map_location=device)
+    if isinstance(state, dict) and "state_dict" in state:
+        state = state["state_dict"]
     model.load_state_dict(state)
     model.to(device)
     model.eval()
 
-    img_paths = sorted(loc_dir.glob("*.png"))
-    if not img_paths:
-        log_fn(f"[INFO] В {loc_dir} нет PNG-изображений.")
-        return
-
-    for img_path in img_paths:
+    for img_path in sorted(png_dir.glob("*.png")):
         img = Image.open(img_path).convert("RGB")
         img_resized, scale, offset_x, offset_y = _resize_and_pad(img, cfg)
 
@@ -207,54 +234,39 @@ def infer_for_locality(
 
         with torch.no_grad():
             heatmaps = model(tensor)
-            kps_resized = heatmaps_to_keypoints(heatmaps)[0]  # (K, 2)
+            kps_resized = heatmaps_to_keypoints(heatmaps)[0].cpu().numpy()  # (K, 2)
 
-        # Возвращаемся к координатам оригинального изображения
+        # Переводим координаты обратно в систему исходного изображения
         if scale > 0:
-            kps_original = kps_resized.clone()
-            # Убираем паддинг
-            kps_original[:, 0] -= offset_x
-            kps_original[:, 1] -= offset_y
-            # Убираем масштабирование
-            kps_original /= scale
+            kps_orig = np.zeros_like(kps_resized, dtype=np.float32)
+            kps_orig[:, 0] = (kps_resized[:, 0] - float(offset_x)) / scale
+            kps_orig[:, 1] = (kps_resized[:, 1] - float(offset_y)) / scale
         else:
-            kps_original = kps_resized
+            kps_orig = kps_resized
 
-        # Гарантируем ровно num_keypoints строк
-        if kps_original.shape[0] < num_keypoints:
-            pad = torch.zeros((num_keypoints - kps_original.shape[0], 2), dtype=kps_original.dtype)
-            kps_original = torch.cat([kps_original, pad], dim=0)
-        elif kps_original.shape[0] > num_keypoints:
-            kps_original = kps_original[:num_keypoints]
-
-        out_csv = img_path.with_suffix(".csv")
-        with out_csv.open("w", encoding="utf-8", newline="") as f:
+        # Запись CSV
+        csv_path = img_path.with_suffix(".csv")
+        with csv_path.open("w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(["x", "y"])
             for i in range(num_keypoints):
-                x = float(kps_original[i, 0].item())
-                y = float(kps_original[i, 1].item())
+                x = float(kps_orig[i, 0]) if i < len(kps_orig) else 0.0
+                y = float(kps_orig[i, 1]) if i < len(kps_orig) else 0.0
                 writer.writerow([x, y])
-
-        log_fn(f"[OK] CSV сохранён для {img_path.name}")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     """
     Точка входа для действия 2) Autolabel locality with current model.
-    Варианты вызова:
-    - без аргументов: берём base_dir из cfg\\last_base.txt и все локальности из localities_status.csv, у которых есть png-папка;
-    - с аргументами: если первый аргумент — существующая папка, считаем её base_dir, а остальное — имена локальностей;
-      иначе все аргументы считаем локальностями, а base_dir берём из cfg\\last_base.txt.
+    Внешний интерфейс не меняем, стараемся быть максимально совместимыми:
+    - база берётся из cfg/last_base.txt, если не передана явно;
+    - локальность берётся из аргумента --locality или переменной окружения GM_LOCALITY.
     """
     argv = list(sys.argv[1:] if argv is None else argv)
     parser = argparse.ArgumentParser(description="Autolabel locality with current HRNet model")
-    parser.add_argument(
-        "args",
-        nargs="*",
-        help="Необязательный base_dir, затем имена локальностей.",
-    )
-    args = parser.parse_args(argv)
+    parser.add_argument("--base", help="Базовая папка локальностей", default=None)
+    parser.add_argument("--locality", help="Имя локальности", default=None)
+    args, _unknown = parser.parse_known_args(argv)
 
     root = get_landmark_root()
     cfg_path = root / "config" / "hrnet_config.yaml"
@@ -265,65 +277,27 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("[ERR] LM_number.txt не найден или содержит неверное значение.")
         return 1
 
-    base_dir: Optional[Path] = None
-    localities: List[str] = []
-
-    # Если первый аргумент — существующая директория, считаем её base_dir
-    if args.args:
-        first = Path(args.args[0])
-        if first.is_dir():
-            base_dir = first
-            localities = [a for a in args.args[1:] if a.strip()]
-        else:
-            localities = [a for a in args.args if a.strip()]
-
-    if base_dir is None:
+    base_dir: Optional[Path]
+    if args.base:
+        base_dir = Path(args.base)
+    else:
         base_dir = read_last_base(root)
-    if base_dir is None:
-        print("[ERR] Базовая папка локальностей не определена (нет cfg\\last_base.txt).")
+
+    if base_dir is None or not base_dir.is_dir():
+        print("[ERR] Базовая папка локальностей не определена или не существует.")
         return 1
 
-    if not localities:
-        # Fallback: все локальности, которые есть в localities_status.csv и имеют подпапку png
-        status_file = root / "status" / "localities_status.csv"
-        if status_file.is_file():
-            with status_file.open("r", encoding="utf-8", newline="") as f:
-                reader = csv.DictReader(f)
-                for row in reader:
-                    loc = row.get("locality", "").strip()
-                    if not loc:
-                        continue
-                    loc_dir = base_dir / loc / "png"
-                    if loc_dir.is_dir():
-                        localities.append(loc)
-        localities = sorted(set(localities))
-
-    logs_dir = root / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_path = logs_dir / "infer_hrnet_last.log"
-    log_file = log_path.open("w", encoding="utf-8")
-
-    def log(msg: str) -> None:
-        ts = time.strftime("%Y-%m-%d %H:%M:%S")
-        line = f"[{ts}] {msg}"
-        print(line)
-        log_file.write(line + "\n")
-        log_file.flush()
-
-    model_path = root / "models" / "current" / "hrnet_best.pth"
-    if not model_path.is_file():
-        log("[ERR] models/current/hrnet_best.pth не найден. Сначала нужно обучить модель (действие 1).")
-        log_file.close()
+    locality = args.locality or os.environ.get("GM_LOCALITY", "").strip()
+    if not locality:
+        print("[ERR] Локальность не указана (нет --locality и GM_LOCALITY).")
         return 1
 
-    log(f"[INFO] Базовая папка: {base_dir}")
-    log(f"[INFO] Локальности для автолейблинга: {localities}")
+    print(f"[INFO] Autolabel locality: {locality}")
+    print(f"[INFO] Base dir: {base_dir}")
 
-    for loc in localities:
-        infer_for_locality(root, base_dir, loc, cfg, lm_number, model_path, log)
+    infer_for_locality(root, base_dir, locality, lm_number, cfg)
 
-    log_file.close()
-    print("[INFO] Autolabel finished.")
+    print("[INFO] Autolabel finished for locality:", locality)
     return 0
 
 
