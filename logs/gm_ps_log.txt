@@ -1,0 +1,1 @@
+[2025-11-15 23:20:00] Updated hrnet_config.yaml: num_keypoints is now read from LM_number.txt (per TZ_V2).
