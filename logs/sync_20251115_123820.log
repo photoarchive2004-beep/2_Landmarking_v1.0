@@ -1,0 +1,102 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115123820
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 24560
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_123820.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Fix trainer_menu.main(): wire actions 2 and 3 ==" -ForegroundColor Cyan
+== Fix trainer_menu.main(): wire actions 2 and 3 ==
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path (Get-Location) "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $trainerPath)) {
+    Write-Host "[ERR] scripts\trainer_menu.py not found." -ForegroundColor Red
+    Stop-Transcript
+    return
+}
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Регулярка: вырезаем старый main() + блок __main__ целиком
+PS D:\GM\tools\2_Landmarking_v1.0> $pattern = '(?ms)def\s+main\(\)\s*->\s*None:[\s\S]+?if\s+__name__\s*==\s*"__main__":[\s\S]+?$'
+PS D:\GM\tools\2_Landmarking_v1.0> $replacement = @'
+def main() -> None:
+    root = get_landmark_root()
+    rows, _ = load_localities_status(root)
+
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
+    print("1) Train / Finetune model on MANUAL localities")
+    print("2) Autolabel locality with current model")
+    print("3) Review AUTO locality in annotator (set MANUAL by button)")
+    print("4) Info about current model / metrics")
+    print("5) Model settings\n")
+    print("0) Quit\n")
+
+    choice = input("Select action: ").strip()
+    print()  # spacer
+
+    # Информационный список локальностей под меню (только для информации)
+    print(format_localities_block(rows))
+
+    if choice == "0" or choice.upper() == "Q":
+        return
+    elif choice == "1":
+        run_train_manual(root)
+        input("Press Enter to exit...")
+    elif choice == "2":
+        run_autolabel(root)
+        input("Press Enter to exit...")
+    elif choice == "3":
+        run_review_auto(root)
+        input("Press Enter to exit...")
+    elif choice == "4":
+        show_current_model_info(root)
+        input("Press Enter to exit...")
+    elif choice == "5":
+        show_model_settings(root)
+        input("Press Enter to exit...")
+    else:
+        print("This action is not implemented yet.")
+        print("Use option 5 to view settings.")
+        input("Press Enter to exit...")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> if ($src -notmatch $pattern) {
+    Write-Host "[ERR] Не смог найти старый main() в trainer_menu.py, файл НЕ изменён." -ForegroundColor Red
+} else {
+    $srcNew = [regex]::Replace($src, $pattern, $replacement)
+    Set-Content -Path $trainerPath -Value $srcNew -Encoding UTF8
+    Write-Host "[OK] trainer_menu.main() переписан по ТЗ (действия 1–5, включая 2 и 3)." -ForegroundColor Green
+}
+[OK] trainer_menu.main() переписан по ТЗ (действия 1–5, включая 2 и 3).
+PS D:\GM\tools\2_Landmarking_v1.0> # Коммит + пуш (включая лог)
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "scripts\trainer_menu.py" $logPath
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "trainer_menu: main() wired actions 2 and 3 per ТЗ_1.0" 2>$null
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115123822
+**********************
