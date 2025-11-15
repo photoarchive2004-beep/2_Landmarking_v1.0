@@ -1,0 +1,150 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115023023
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 18492
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_023023.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Sync trainer_menu main() for Actions 2 and 3 ==="
+=== Sync trainer_menu main() for Actions 2 and 3 ===
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Подтягиваем изменения с GitHub (на всякий случай)
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Читаем trainer_menu.py
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path (Get-Location) "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Старый блок main() (как он сейчас выглядит)
+PS D:\GM\tools\2_Landmarking_v1.0> $oldMain = @'
+def main() -> None:
+    root = get_landmark_root()
+    rows, _ = load_localities_status(root)
+
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
+    print("1) Train / Finetune model on MANUAL localities")
+    print("2) Autolabel locality with current model")
+    print("3) Review AUTO locality in annotator (set MANUAL by button)")
+    print("4) Info about current model / metrics")
+    print("5) Model settings\n")
+    print("0) Quit\n")
+
+    choice = input("Select action: ").strip()
+    print()  # spacer
+
+    # Информационный список локальностей под меню
+    print(format_localities_block(rows))
+
+    if choice == "0" or choice.upper() == "Q":
+        return
+    elif choice == "1":
+        run_train_manual(root)
+    elif choice == "4":
+        show_current_model_info(root)
+        input("Press Enter to exit...")
+    elif choice == "5":
+        show_model_settings(root)
+        input("Press Enter to exit...")
+    else:
+        print("This action is not implemented yet.")
+        print("Use option 5 to view settings.")
+        input("Press Enter to exit...")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Новый блок main() — добавлены действия 2 и 3 + пауза после каждого действия
+PS D:\GM\tools\2_Landmarking_v1.0> $newMain = @'
+def main() -> None:
+    root = get_landmark_root()
+    rows, _ = load_localities_status(root)
+
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
+    print("1) Train / Finetune model on MANUAL localities")
+    print("2) Autolabel locality with current model")
+    print("3) Review AUTO locality in annotator (set MANUAL by button)")
+    print("4) Info about current model / metrics")
+    print("5) Model settings\n")
+    print("0) Quit\n")
+
+    choice = input("Select action: ").strip()
+    print()  # spacer
+
+    # Информационный список локальностей под меню
+    print(format_localities_block(rows))
+
+    if choice == "0" or choice.upper() == "Q":
+        return
+    elif choice == "1":
+        run_train_manual(root)
+        input("Press Enter to exit...")
+    elif choice == "2":
+        run_autolabel(root)
+        input("Press Enter to exit...")
+    elif choice == "3":
+        run_review_auto(root)
+        input("Press Enter to exit...")
+    elif choice == "4":
+        show_current_model_info(root)
+        input("Press Enter to exit...")
+    elif choice == "5":
+        show_model_settings(root)
+        input("Press Enter to exit...")
+    else:
+        print("This action is not implemented yet.")
+        print("Use option 5 to view settings.")
+        input("Press Enter to exit...")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        sys.exit(0)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # 6) Заменяем старый блок на новый
+PS D:\GM\tools\2_Landmarking_v1.0> if ($src -notmatch [regex]::Escape($oldMain)) {
+    Write-Host "[WARN] Старый main() не найден, файл НЕ изменён." -ForegroundColor Yellow
+} else {
+    $escaped = [regex]::Escape($oldMain)
+    $src = [regex]::Replace($src, $escaped, $newMain, 1)
+    Set-Content -Path $trainerPath -Value $src -Encoding UTF8
+    Write-Host "[OK] trainer_menu.main() обновлён (добавлены действия 2 и 3, паузы после действий)." -ForegroundColor Green
+}
+[WARN] Старый main() не найден, файл НЕ изменён.
+PS D:\GM\tools\2_Landmarking_v1.0> # 7) Коммит и push
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "scripts\trainer_menu.py"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Trainer: hook Actions 2 and 3 into main() per ТЗ_1.0"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 8) Останавливаем логирование
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115023026
+**********************

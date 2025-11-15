@@ -1,0 +1,482 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115013028
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 21176
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_013028.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Подтягиваем свежие изменения с GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Перезаписываем scripts\train_hrnet.py строго по ТЗ_1.0
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $trainPath = Join-Path $root "scripts\train_hrnet.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $trainContent = @'
+from __future__ import annotations
+
+import csv
+import json
+import sys
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Tuple
+
+
+def get_landmark_root() -> Path:
+    """Return tools/2_Landmarking_v1.0 folder (parent of scripts/)."""
+    return Path(__file__).resolve().parent.parent
+
+
+def get_base_localities(root: Path) -> Path:
+    """
+    Read base_localities from cfg/last_base.txt.
+
+    This file is created by 1_ANNOTATOR.bat / 2_TRAIN-INFER_HRNet.bat,
+    as described in ТЗ_1.0.
+    """
+    cfg_dir = root / "cfg"
+    last_base = cfg_dir / "last_base.txt"
+    if not last_base.exists():
+        raise RuntimeError("cfg/last_base.txt not found.")
+    text = last_base.read_text(encoding="utf-8").strip()
+    if not text:
+        raise RuntimeError("cfg/last_base.txt is empty.")
+    return Path(text)
+
+
+def load_localities_status(root: Path) -> Tuple[List[Dict[str, str]], Path]:
+    """Load status/localities_status.csv into a list of dicts."""
+    status_dir = root / "status"
+    csv_path = status_dir / "localities_status.csv"
+    rows: List[Dict[str, str]] = []
+    if not csv_path.exists():
+        return rows, csv_path
+    with csv_path.open("r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            if not row.get("locality"):
+                continue
+            rows.append(row)
+    return rows, csv_path
+
+
+@dataclass
+class Sample:
+    image: Path
+    csv: Path
+    locality: str
+
+
+def collect_manual_samples(root: Path, base_localities: Path) -> Tuple[List[Sample], int]:
+    """
+    Collect all (png, csv) pairs for localities with status == 'MANUAL'.
+    """
+    rows, _ = load_localities_status(root)
+    manual_rows = [
+        r
+        for r in rows
+        if (r.get("status") or "").strip().upper() == "MANUAL"
+    ]
+
+    samples: List[Sample] = []
+    for row in manual_rows:
+        loc = (row.get("locality") or "").strip()
+        if not loc:
+            continue
+        png_dir = base_localities / loc / "png"
+        if not png_dir.is_dir():
+            continue
+        for img in sorted(png_dir.glob("*.png")):
+            csv_path = img.with_suffix(".csv")
+            if not csv_path.exists():
+                continue
+            samples.append(Sample(image=img, csv=csv_path, locality=loc))
+
+    return samples, len(manual_rows)
+
+
+def read_hrnet_config(root: Path) -> Tuple[float, str]:
+    """
+    Read train_val_split and model_type from config/hrnet_config.yaml.
+
+    Very small parser: only simple 'key: value' lines are supported.
+    """
+    cfg_path = root / "config" / "hrnet_config.yaml"
+    default_split = 0.9
+    default_model = "HRNet-W32 (18 keypoints)"
+
+    if not cfg_path.exists():
+        return default_split, default_model
+
+    train_split = default_split
+    model_name = default_model
+
+    for raw in cfg_path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, value_raw = line.split(":", 1)
+        key = key.strip()
+        value_str = value_raw.strip()
+
+        # strip quotes
+        if (
+            (value_str.startswith('"') and value_str.endswith('"'))
+            or (value_str.startswith("'") and value_str.endswith("'"))
+        ):
+            value_str = value_str[1:-1]
+
+        if key == "train_val_split":
+            try:
+                v = float(value_str)
+                if 0.0 < v < 1.0:
+                    train_split = v
+            except Exception:
+                pass
+        elif key == "model_type":
+            if value_str:
+                model_name = value_str
+
+    return train_split, model_name
+
+
+def split_dataset(n_items: int, train_share: float) -> Tuple[int, int]:
+    """
+    Compute train/val sizes with basic protection against edge cases.
+    """
+    if n_items <= 0:
+        return 0, 0
+    n_train = int(round(n_items * train_share))
+    if n_train <= 0:
+        n_train = 1
+    if n_train >= n_items:
+        n_train = n_items - 1 if n_items > 1 else n_items
+    n_val = n_items - n_train
+    return n_train, n_val
+
+
+def write_dataset_lists(
+    datasets_root: Path,
+    run_id: str,
+    train_samples: List[Sample],
+    val_samples: List[Sample],
+) -> None:
+    """
+    Save simple CSV lists for train/val inside datasets/<run_id>/.
+
+    Format: locality,image,csv
+    where image/csv are file names (no absolute paths).
+    """
+    run_dir = datasets_root / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+
+    def _write(name: str, samples: List[Sample]) -> None:
+        path = run_dir / f"{name}_list.csv"
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["locality", "image", "csv"])
+            for s in samples:
+                writer.writerow([s.locality, s.image.name, s.csv.name])
+
+    _write("train", train_samples)
+    _write("val", val_samples)
+
+
+def ensure_model_dirs(root: Path, run_id: str) -> Tuple[Path, Path]:
+    """
+    Create models/history/<run_id>/ and models/current/ folders.
+    """
+    models_dir = root / "models"
+    history_dir = models_dir / "history" / run_id
+    current_dir = models_dir / "current"
+    history_dir.mkdir(parents=True, exist_ok=True)
+    current_dir.mkdir(parents=True, exist_ok=True)
+    return history_dir, current_dir
+
+
+def write_train_config(
+    path: Path,
+    run_id: str,
+    n_manual: int,
+    n_train: int,
+    n_val: int,
+    split: float,
+    model_name: str,
+) -> None:
+    """
+    Very small YAML-like train_config.yaml for history.
+    """
+    lines = [
+        f"run_id: {run_id}",
+        f"model_type: {model_name}",
+        f"n_manual_localities: {n_manual}",
+        f"n_train_images: {n_train}",
+        f"n_val_images: {n_val}",
+        f"train_val_split: {split:.3f}",
+        "note: placeholder training (neural network is not implemented yet)",
+    ]
+    text = "\n".join(lines) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def main() -> int:
+    root = get_landmark_root()
+    try:
+        base_localities = get_base_localities(root)
+    except Exception as exc:
+        print("[ERR] Base localities path is not configured.")
+        print(f"      {exc}")
+        return 1
+
+    samples, n_manual = collect_manual_samples(root, base_localities)
+    n_total = len(samples)
+
+    if n_manual == 0 or n_total == 0:
+        print("No MANUAL localities with PNG+CSV pairs found.")
+        print("Nothing to train.")
+        return 0
+
+    train_split, model_name = read_hrnet_config(root)
+
+    # deterministic split: sort by (locality, image name)
+    samples_sorted = sorted(samples, key=lambda s: (s.locality, s.image.name))
+    n_train, n_val = split_dataset(len(samples_sorted), train_split)
+    train_samples = samples_sorted[:n_train]
+    val_samples = samples_sorted[n_train:]
+
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    history_dir, current_dir = ensure_model_dirs(root, run_id)
+
+    datasets_root = root / "datasets"
+    write_dataset_lists(datasets_root, run_id, train_samples, val_samples)
+
+    # placeholder model file
+    model_path = history_dir / "hrnet_best.pth"
+    model_path.write_bytes(b"")
+
+    if n_total > 0:
+        train_share = float(n_train) / float(n_total)
+        val_share = float(n_val) / float(n_total)
+    else:
+        train_share = 0.0
+        val_share = 0.0
+
+    pck_r = 0.0
+    pck_r_percent = int(round(pck_r * 100.0))
+
+    metrics = {
+        "run_id": run_id,
+        "model_type": model_name,
+        "pck_r": pck_r,
+        "pck_r_percent": pck_r_percent,
+        "n_train_images": n_train,
+        "n_val_images": n_val,
+        "train_share": train_share,
+        "val_share": val_share,
+        "n_manual_localities": n_manual,
+    }
+
+    metrics_path = history_dir / "metrics.json"
+    metrics_path.write_text(
+        json.dumps(metrics, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    train_log_path = history_dir / "train_log.txt"
+    with train_log_path.open("w", encoding="utf-8") as f:
+        f.write(f"Run id: {run_id}\n")
+        f.write(f"Base localities: {base_localities}\n")
+        f.write(f"Manual localities: {n_manual}\n")
+        f.write(f"Total samples (PNG+CSV): {n_total}\n")
+        f.write(f"Train images: {n_train}\n")
+        f.write(f"Val images: {n_val}\n")
+        f.write("NOTE: placeholder training, neural network is not implemented yet.\n")
+
+    train_config_path = history_dir / "train_config.yaml"
+    write_train_config(
+        train_config_path,
+        run_id,
+        n_manual,
+        n_train,
+        n_val,
+        train_split,
+        model_name,
+    )
+
+    current_model_path = current_dir / "hrnet_best.pth"
+    try:
+        data = model_path.read_bytes()
+        current_model_path.write_bytes(data)
+    except Exception:
+        current_model_path.write_bytes(b"")
+
+    quality_path = current_dir / "quality.json"
+    quality_path.write_text(
+        json.dumps(metrics, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    # Detailed summary is printed by trainer_menu.run_train_manual().
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except KeyboardInterrupt:
+        sys.exit(1)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $trainPath -Value $trainContent -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Обновляем только функцию run_train_manual в scripts\trainer_menu.py
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path $root "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> $newRunTrain = @'
+def run_train_manual(root: Path) -> None:
+    """
+    Меню пункт 1: обучение по MANUAL локальностям.
+
+    Логика по ТЗ_1.0:
+    - если MANUAL локальностей нет, выводим понятное сообщение и выходим;
+    - иначе запускаем scripts/train_hrnet.py;
+    - после успешного запуска читаем models/current/quality.json
+      и печатаем сводку в формате ТЗ.
+    """
+    # 1) Проверяем, есть ли вообще MANUAL локальности
+    rows, _ = load_localities_status(root)
+    manual_rows = [
+        r
+        for r in rows
+        if (r.get("status") or "").strip().upper() == "MANUAL"
+    ]
+    if not manual_rows:
+        print("No MANUAL localities found in status/localities_status.csv.")
+        print("Nothing to train. Please annotate at least one locality and mark it as MANUAL.")
+        print()
+        return
+
+    # 2) Проверяем наличие скрипта обучения
+    script = root / "scripts" / "train_hrnet.py"
+    if not script.exists():
+        print("[ERR] scripts/train_hrnet.py not found.")
+        print("Please check repository contents.")
+        print()
+        return
+
+    # 3) Запускаем обучение
+    try:
+        rc = subprocess.call([sys.executable, str(script)])
+    except Exception as exc:
+        print("[ERR] Cannot start train_hrnet.py:")
+        print(f"      {exc}")
+        print()
+        return
+
+    if rc != 0:
+        print(f"[ERR] train_hrnet.py exited with code {rc}.")
+        print("See logs from train_hrnet.py for details.")
+        print()
+        return
+
+    # 4) Читаем models/current/quality.json и печатаем сводку
+    q_path = root / "models" / "current" / "quality.json"
+    if not q_path.exists():
+        print("[ERR] models/current/quality.json not found after training.")
+        print("Training summary cannot be printed.")
+        print()
+        return
+
+    try:
+        data = json.loads(q_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        print()
+        return
+
+    run_id = data.get("run_id", "?")
+    n_train = int(data.get("n_train_images", 0) or 0)
+    n_val = int(data.get("n_val_images", 0) or 0)
+    train_share = float(data.get("train_share", 0.0) or 0.0)
+    val_share = float(data.get("val_share", 0.0) or 0.0)
+    n_manual = int(data.get("n_manual_localities", 0) or 0)
+
+    # PCK в процентах – сначала пробуем готовое поле pck_r_percent,
+    # иначе берём pck_r как долю 0.xx
+    pck_percent = data.get("pck_r_percent")
+    if pck_percent is None:
+        pck_raw = float(data.get("pck_r", 0.0) or 0.0)
+        pck_percent = int(round(100.0 * pck_raw))
+    else:
+        pck_percent = int(pck_percent)
+
+    print("Training finished.\n")
+    print(f"Used MANUAL localities: {n_manual}")
+    print()
+    print(f"Train images: {n_train} ({int(round(train_share * 100))}%)")
+    print(f"Val images:   {n_val} ({int(round(val_share * 100))}%)")
+    print()
+    print(f"PCK@R (validation): {pck_percent} %")
+    print()
+    print("Model saved as: models/current/hrnet_best.pth")
+    print(f"Run id: {run_id}")
+    print()
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> $pattern = '(?ms)def run_train_manual\(.*?)(^def main\(\) -> None:)'
+PS D:\GM\tools\2_Landmarking_v1.0> if (-not [regex]::IsMatch($src, $pattern)) {
+    Write-Host "[ERR] Pattern for run_train_manual not found in trainer_menu.py." -ForegroundColor Red
+} else {
+    $newSrc = [regex]::Replace($src, $pattern, $newRunTrain + "`r`n`r`n`$2")
+    Set-Content -Path $trainerPath -Value $newSrc -Encoding UTF8
+    Write-Host "[OK] run_train_manual updated in scripts\trainer_menu.py."
+}
+Исключение при вызове "IsMatch" с "2" аргументами: "выполняется разбор "(?ms)def run_train_manual\(.*?)(^def main\(\) ->
+ None:)" - Лишние закрывающие скобки )."
+строка:1 знак:5
++ if (-not [regex]::IsMatch($src, $pattern)) {
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException
+    + FullyQualifiedErrorId : ArgumentException
+Исключение при вызове "IsMatch" с "2" аргументами: "выполняется разбор "(?ms)def run_train_manual\(.*?)(^def main\(\) -
+> None:)" - Лишние закрывающие скобки )."
+строка:1 знак:5
++ if (-not [regex]::IsMatch($src, $pattern)) {
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException
+    + FullyQualifiedErrorId : ArgumentException
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Коммит и push
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "scripts\train_hrnet.py" "scripts\trainer_menu.py"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "train_hrnet: use hrnet_config + datasets, run_train_manual: MANUAL check per ТЗ_1.0"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 6) Останавливаем лог
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115013032
+**********************

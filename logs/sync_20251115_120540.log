@@ -1,0 +1,133 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115120540
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 19032
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_120540.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Step: 1_ANNOTATOR.bat uses GM_MODE/GM_LOCALITY for REVIEW_AUTO ==" -ForegroundColor Cyan
+== Step: 1_ANNOTATOR.bat uses GM_MODE/GM_LOCALITY for REVIEW_AUTO ==
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Обновляемся с GitHub (на всякий случай)
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Читаем 1_ANNOTATOR.bat
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $annotPath = Join-Path $root "1_ANNOTATOR.bat"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $annotPath)) {
+    Write-Host "[ERR] 1_ANNOTATOR.bat not found." -ForegroundColor Red
+    Stop-Transcript
+    return
+}
+PS D:\GM\tools\2_Landmarking_v1.0> $bat = Get-Content $annotPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Добавляем поддержку GM_MODE/GM_LOCALITY, если её ещё нет
+PS D:\GM\tools\2_Landmarking_v1.0> if ($bat -notmatch "GM_MODE") {
+
+    Write-Host "[INFO] Patching menu section in 1_ANNOTATOR.bat for REVIEW_AUTO..." -ForegroundColor Yellow
+
+    # 4.1. Вставляем блок перед выводом меню
+    $bat = $bat -replace 'rem ---- Menu ----\s*echo\.',
+@'rem ---- Menu ----
+rem In REVIEW_AUTO mode locality is provided by trainer_menu.py (GM_MODE/GM_LOCALITY).
+if /I "%GM_MODE%"=="REVIEW_AUTO" if defined GM_LOCALITY (
+    set "SEL_LOC=%GM_LOCALITY%"
+    goto _sel_done
+)
+
+строка:7 знак:3
++ @'rem ---- Menu ----
++   ~
+Этот знак не допускается между заголовком here-строки и концом строки кода.
+
+строка:9 знак:3
++ if /I "%GM_MODE%"=="REVIEW_AUTO" if defined GM_LOCALITY (
++   ~
+Отсутствует "(" в операторе if после "if".
+
+строка:10 знак:32
++     set "SEL_LOC=%GM_LOCALITY%"
++                                ~
+Отсутствует закрывающий знак ")" в выражении.
+
+строка:1 знак:31
++ if ($bat -notmatch "GM_MODE") {
++                               ~
+Отсутствует закрывающий знак "}" в блоке операторов или определении типа.
+
+строка:12 знак:1
++ )
++ ~
+Непредвиденная лексема ")" в выражении или операторе.
+строка:7 знак:3
++ @'rem ---- Menu ----
++   ~
+Этот знак не допускается между заголовком here-строки и концом строки кода.
+
+строка:9 знак:3
++ if /I "%GM_MODE%"=="REVIEW_AUTO" if defined GM_LOCALITY (
++   ~
+Отсутствует "(" в операторе if после "if".
+
+строка:10 знак:32
++     set "SEL_LOC=%GM_LOCALITY%"
++                                ~
+Отсутствует закрывающий знак ")" в выражении.
+
+строка:1 знак:31
++ if ($bat -notmatch "GM_MODE") {
++                               ~
+Отсутствует закрывающий знак "}" в блоке операторов или определении типа.
+
+строка:12 знак:1
++ )
++ ~
+Непредвиденная лексема ")" в выражении или операторе.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : UnexpectedCharactersAfterHereStringHeader
+
+PS D:\GM\tools\2_Landmarking_v1.0> echo.
+echo. : Имя "echo." не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте прави
+льность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ echo.
++ ~~~~~
+    + CategoryInfo          : ObjectNotFound: (echo.:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+echo. : Имя "echo." не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте прав
+ильность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ echo.
++ ~~~~~
+    + CategoryInfo          : ObjectNotFound: (echo.:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\GM\tools\2_Landmarking_v1.0> '@
+
+    # 4.2. Добавляем метку _sel_done перед установкой PNG_DIR
+    $bat = $bat -replace 'set "PNG_DIR=%PHOTOS_DIR%\\!SEL_LOC!\\png"',
+@':_sel_done
+строка:4 знак:27
++     $bat = $bat -replace 'set "PNG_DIR=%PHOTOS_DIR%\\!SEL_LOC!\\png"' ...
++                           ~~~
+Непредвиденная лексема "set" в выражении или операторе.
+строка:4 знак:27
++     $bat = $bat -replace 'set "PNG_DIR=%PHOTOS_DIR%\\!SEL_LOC!\\png"' ...
++                           ~~~
+Непредвиденная лексема "set" в выражении или операторе.
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : UnexpectedToken
+

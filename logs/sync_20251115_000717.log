@@ -1,0 +1,66 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115000717
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 15560
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_000717.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Обновляемся с GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Аккуратно правим scripts\trainer_menu.py:
+PS D:\GM\tools\2_Landmarking_v1.0> #    после run_train_manual(root) добавляем паузу input("Press Enter to exit...")
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Исходный фрагмент, который был раньше
+PS D:\GM\tools\2_Landmarking_v1.0> $pattern = @'
+    elif choice == "1":
+        run_train_manual(root)
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # Новый фрагмент с паузой
+PS D:\GM\tools\2_Landmarking_v1.0> $replacement = @'
+    elif choice == "1":
+        run_train_manual(root)
+        input("Press Enter to exit...")
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> if ($src -notlike "*run_train_manual(root)*") {
+    Write-Host "[WARN] В trainer_menu.py не найден ожидаемый фрагмент с run_train_manual(root). Файл мог измениться."
+} else {
+    # Экранируем шаблон как обычный текст, чтобы -replace не пытался трактовать его как регулярное выражение
+    $escaped = [regex]::Escape($pattern)
+    $src = [regex]::Replace($src, $escaped, $replacement, 1)
+    Set-Content -Path $trainerPath -Value $src -Encoding UTF8
+}
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Смотрим, что изменилось, и коммитим
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add $trainerPath
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "chore: pause after MANUAL training so console does not close immediately"
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Пушим на GitHub и проверяем, что main обновился
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 6) Закрываем лог
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115000721
+**********************

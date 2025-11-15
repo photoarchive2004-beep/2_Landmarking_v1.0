@@ -1,0 +1,267 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115015930
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 5884
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_015930.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Обновляемся с GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path $root "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $trainerPath)) {
+    Write-Host "[ERR] scripts\trainer_menu.py not found." -ForegroundColor Red
+    Stop-Transcript
+    return
+}
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Добавляем функцию run_review_auto (если её ещё нет)
+PS D:\GM\tools\2_Landmarking_v1.0> if ($src -notmatch 'def\s+run_review_auto\(') {
+    $runReview = @'
+def run_review_auto(root: Path) -> None:
+    """
+    Action 3: review AUTO locality in annotator (GM_MODE=REVIEW_AUTO)
+    according to ТЗ_1.0.
+    """
+    import csv
+    import os
+    import subprocess
+    from datetime import datetime
+
+    # Читаем статус локальностей
+    rows, csv_path = load_localities_status(root)
+    if not rows:
+        print("No localities registered in status/localities_status.csv.")
+        print("Nothing to review.")
+        print()
+        return
+
+    auto_rows = []
+    for row in rows:
+        status_raw = (row.get("status") or "").strip().upper()
+        if status_raw == "AUTO":
+            auto_rows.append(row)
+
+    if not auto_rows:
+        print("No AUTO localities to review.")
+        print()
+        return
+
+    print("AUTO localities:\n")
+    idx_width = len(str(len(auto_rows)))
+    name_width = max(len((r.get("locality") or "")) for r in auto_rows) + 2
+
+    for i, row in enumerate(auto_rows, 1):
+        locality = (row.get("locality") or "").strip()
+        auto_q = (row.get("auto_quality") or "").strip()
+        try:
+            n_images = int(row.get("n_images") or 0)
+        except Exception:
+            n_images = 0
+        try:
+            n_labeled = int(row.get("n_labeled") or 0)
+        except Exception:
+            n_labeled = 0
+        status_str = f"AUTO {auto_q}" if auto_q else "AUTO"
+        left = f"[{i:>{idx_width}d}] {locality.ljust(name_width)}"
+        right = f"({n_images} imgs, {n_labeled} csv)"
+        print(f"{left}{status_str.ljust(10)}{right}")
+    print()
+
+    choice = input("Select locality to review (or 0 to cancel): ").strip()
+    if not choice or choice in ("0", "Q", "q"):
+        print("Review cancelled.")
+        print()
+        return
+
+    try:
+        idx = int(choice)
+    except ValueError:
+        print("[ERR] Invalid selection.")
+        print()
+        return
+
+    if idx < 1 or idx > len(auto_rows):
+        print("[ERR] Locality number out of range.")
+        print()
+        return
+
+    selected = auto_rows[idx - 1]
+    locality = (selected.get("locality") or "").strip()
+    if not locality:
+        print("[ERR] Selected locality name is empty.")
+        print()
+        return
+
+    annotator = root / "1_ANNOTATOR.bat"
+    if not annotator.exists():
+        print("[ERR] 1_ANNOTATOR.bat not found.")
+        print()
+        return
+
+    env = os.environ.copy()
+    env["GM_LOCALITY"] = locality
+    env["GM_MODE"] = "REVIEW_AUTO"
+
+    print()
+    print(f'Starting annotator in REVIEW_AUTO mode for locality "{locality}"...')
+    print()
+
+    try:
+        # На Windows .bat безопаснее запускать через shell=True
+        rc = subprocess.call(str(annotator), env=env, shell=True)
+    except Exception as exc:
+        print("[ERR] Cannot launch 1_ANNOTATOR.bat:")
+        print(f"      {exc}")
+        print()
+        return
+
+    if rc != 0:
+        print(f"[WARN] Annotator exited with code {rc}.")
+        print("If you closed the window manually, review may be incomplete.")
+        print()
+
+    flag_dir = root / "status"
+    flag_path = flag_dir / f"review_done_{locality}.flag"
+
+    if not flag_path.exists():
+        print(f'Review for locality "{locality}" was not finished (no flag file).')
+        print("Status unchanged.")
+        print()
+        return
+
+    status_file = csv_path
+    if not status_file.exists():
+        print("[ERR] status/localities_status.csv not found.")
+        print("Cannot update status after review.")
+        print()
+        return
+
+    try:
+        with status_file.open("r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = reader.fieldnames or []
+            rows_all = list(reader)
+    except Exception as exc:
+        print("[ERR] Cannot read localities_status.csv for update:")
+        print(f"      {exc}")
+        print()
+        return
+
+    now_iso = datetime.now().isoformat(timespec="seconds")
+
+    if not fieldnames:
+        fieldnames = [
+            "locality",
+            "status",
+            "auto_quality",
+            "last_model_run",
+            "last_update",
+            "n_images",
+            "n_labeled",
+        ]
+
+    for row in rows_all:
+        if (row.get("locality") or "").strip() == locality:
+            row["status"] = "MANUAL"
+            row["auto_quality"] = ""
+            if "last_update" in fieldnames:
+                row["last_update"] = now_iso
+
+    try:
+        with status_file.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in rows_all:
+                writer.writerow(row)
+    except Exception as exc:
+        print("[ERR] Cannot write updated localities_status.csv:")
+        print(f"      {exc}")
+        print()
+        return
+
+    try:
+        flag_path.unlink()
+    except OSError:
+        pass
+
+    print(f'Locality "{locality}" marked as MANUAL (after review).')
+    print()
+'@
+
+    if ($src -match 'def\s+run_autolabel\(') {
+        # Вставляем run_review_auto прямо перед run_autolabel
+        $src = $src -replace 'def\s+run_autolabel\(', "$runReview`r`n`r`ndef run_autolabel("
+    } else {
+        # На всякий случай — перед main()
+        $src = $src -replace '(?m)^def main\(\) -> None:', "$runReview`r`n`r`ndef main() -> None:"
+    }
+}
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Обновляем блок выбора действия в main(): добавляем ветку для "3"
+PS D:\GM\tools\2_Landmarking_v1.0> $patternMain = '(?ms)if choice == "0" or choice.upper\(\) == "Q":[\s\S]+?input\("Press Enter to exit\."\)\s*'
+PS D:\GM\tools\2_Landmarking_v1.0> $replacementMain = @'
+    if choice == "0" or choice.upper() == "Q":
+        return
+    elif choice == "1":
+        run_train_manual(root)
+        input("Press Enter to exit...")
+    elif choice == "2":
+        run_autolabel(root)
+        input("Press Enter to exit...")
+    elif choice == "3":
+        run_review_auto(root)
+        input("Press Enter to exit...")
+    elif choice == "4":
+        show_current_model_info(root)
+        input("Press Enter to exit...")
+    elif choice == "5":
+        show_model_settings(root)
+        input("Press Enter to exit...")
+    else:
+        print("This action is not implemented yet.")
+        print("Use option 5 to view settings.")
+        input("Press Enter to exit...")
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> if ([regex]::IsMatch($src, $patternMain)) {
+    $src = [regex]::Replace($src, $patternMain, $replacementMain)
+    Write-Host "[OK] main() choice block updated (added action 3)."
+} else {
+    Write-Host "[WARN] Pattern for main() choices not found. main() block left unchanged." -ForegroundColor Yellow
+}
+[WARN] Pattern for main() choices not found. main() block left unchanged.
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content -Path $trainerPath -Value $src -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Коммит и push
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "scripts\trainer_menu.py"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Trainer: add Action 3 Review AUTO (per ТЗ_1.0)"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 6) Стоп-лог
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115015934
+**********************

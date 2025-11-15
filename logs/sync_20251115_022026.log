@@ -1,0 +1,116 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115022026
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 18500
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_022026.log
+PS D:\GM\tools\2_Landmarking_v1.0> $fp = "scripts\train_hrnet.py"
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $fp -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Если блока с "Training finished." ещё нет – добавляем в конец файла
+PS D:\GM\tools\2_Landmarking_v1.0> if ($src -notmatch "Training finished\.") {
+
+    $append = @'
+from pathlib import Path
+import json
+
+
+def _gm_print_training_summary_from_quality():
+    """
+    Print training summary after HRNet training, as described in ТЗ_1.0.
+    Uses models/current/quality.json.
+    """
+    root = Path(__file__).resolve().parent.parent
+    q_path = root / "models" / "current" / "quality.json"
+
+    if not q_path.exists():
+        print("[WARN] models/current/quality.json not found, cannot print training summary.")
+        return
+
+    try:
+        data = json.loads(q_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        return
+
+    run_id = data.get("run_id", "?")
+    n_train = int(data.get("n_train_images", 0) or 0)
+    n_val = int(data.get("n_val_images", 0) or 0)
+    train_share = float(data.get("train_share", 0.0) or 0.0)
+    val_share = float(data.get("val_share", 0.0) or 0.0)
+    pck_percent = int(data.get("pck_r_percent", 0) or 0)
+    n_loc = int(data.get("n_manual_localities", 0) or 0)
+
+    train_pct = int(round(train_share * 100.0)) if train_share > 0.0 else 0
+    val_pct = int(round(val_share * 100.0)) if val_share > 0.0 else 0
+
+    print()
+    print("Training finished.")
+    print()
+    print(f"Used MANUAL localities: {n_loc}")
+    print(f"Train images: {n_train} ({train_pct}%)")
+    print(f"Val images:   {n_val:4d} ({val_pct}%)")
+    print()
+    print(f"PCK@R (validation): {pck_percent} %")
+    print()
+    print("Model saved as: models/current/hrnet_best.pth")
+    print(f"Run id: {run_id}")
+
+
+if __name__ == "__main__":
+    try:
+        _gm_print_training_summary_from_quality()
+    except Exception as exc:
+        print("[WARN] Failed to print training summary:")
+        print(f"       {exc}")
+'@
+
+    $src = $src + "`r`n" + $append
+    Set-Content -Path $fp -Value $src -Encoding utf8
+}
+PS D:\GM\tools\2_Landmarking_v1.0> else {
+    Write-Host "Код с 'Training finished.' уже есть в scripts\train_hrnet.py – пропускаю добавление."
+}
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правиль
+ность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правил
+ьность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add $fp
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "HRNet training: print final summary from models/current/quality.json (per ТЗ_1.0)"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115022028
+**********************

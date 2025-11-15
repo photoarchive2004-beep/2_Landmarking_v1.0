@@ -1,0 +1,7 @@
+Run id: 20251115_022103
+Base localities: G:\Research\Morphology\Photos\Phoxinus
+Manual localities: 12
+Total samples (PNG+CSV): 163
+Train images: 147
+Val images: 16
+NOTE: placeholder training, neural network is not implemented yet.

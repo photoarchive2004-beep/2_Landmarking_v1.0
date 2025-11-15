@@ -1,0 +1,153 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115011328
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 10248
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_011328.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Страховочный pull с GitHub (чтобы локальная папка была актуальной)
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+error: cannot pull with rebase: You have unstaged changes.
+error: Please commit or stash them.
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Патчим только функцию run_train_manual в scripts\trainer_menu.py
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path $root "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $trainerPath)) {
+    Write-Host "[ERR] scripts\trainer_menu.py not found." -ForegroundColor Red
+    Stop-Transcript
+    return
+}
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Новый код функции run_train_manual (строго в рамках ТЗ)
+PS D:\GM\tools\2_Landmarking_v1.0> $newBlock = @'
+def run_train_manual(root: Path) -> None:
+    """
+    Меню пункт 1: запуск обучения по MANUAL локальностям.
+
+    1) Запускаем scripts/train_hrnet.py (он создаёт/обновляет models/current/quality.json).
+    2) Если всё прошло без ошибок и quality.json существует — читаем его
+       и печатаем сводку в точном формате из ТЗ.
+    """
+    script = root / "scripts" / "train_hrnet.py"
+    if not script.exists():
+        print("[ERR] scripts/train_hrnet.py not found.")
+        print("Please check repository contents.")
+        print()
+        return
+
+    try:
+        rc = subprocess.call([sys.executable, str(script)])
+    except Exception as exc:
+        print("[ERR] Cannot start train_hrnet.py:")
+        print(f"      {exc}")
+        print()
+        return
+
+    if rc != 0:
+        print(f"[ERR] train_hrnet.py exited with code {rc}.")
+        print("See logs from train_hrnet.py for details.")
+        print()
+        return
+
+    # После успешного запуска ожидаем models/current/quality.json
+    q_path = root / "models" / "current" / "quality.json"
+    if not q_path.exists():
+        print("[ERR] models/current/quality.json not found after training.")
+        print("Training summary cannot be printed.")
+        print()
+        return
+
+    try:
+        data = json.loads(q_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        print("[ERR] Cannot read models/current/quality.json:")
+        print(f"      {exc}")
+        print()
+        return
+
+    run_id = data.get("run_id", "?")
+    n_train = int(data.get("n_train_images", 0) or 0)
+    n_val = int(data.get("n_val_images", 0) or 0)
+    train_share = float(data.get("train_share", 0.0) or 0.0)
+    val_share = float(data.get("val_share", 0.0) or 0.0)
+    n_manual = int(data.get("n_manual_localities", 0) or 0)
+
+    # PCK в процентах – сначала пробуем готовое поле pck_r_percent,
+    # иначе берём pck_r как долю 0.xx
+    pck_percent = data.get("pck_r_percent")
+    if pck_percent is None:
+        pck_raw = float(data.get("pck_r", 0.0) or 0.0)
+        pck_percent = int(round(100.0 * pck_raw))
+    else:
+        pck_percent = int(pck_percent)
+
+    # Вывод в формате из ТЗ
+    print("Training finished.\n")
+    print(f"Used MANUAL localities: {n_manual}")
+    print()
+    print(f"Train images: {n_train} ({int(round(train_share * 100))}%)")
+    print(f"Val images:   {n_val} ({int(round(val_share * 100))}%)")
+    print()
+    print(f"PCK@R (validation): {pck_percent} %")
+    print()
+    print("Model saved as: models/current/hrnet_best.pth")
+    print(f"Run id: {run_id}")
+    print()
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # Регуляркой заменяем старую run_train_manual на новую,
+PS D:\GM\tools\2_Landmarking_v1.0> # не трогая def main и остальной файл.
+PS D:\GM\tools\2_Landmarking_v1.0> $pattern = '(?ms)def run_train_manual\(.*?)(^def main\(\) -> None:)'
+PS D:\GM\tools\2_Landmarking_v1.0> if (-not [regex]::IsMatch($src, $pattern)) {
+    Write-Host "[ERR] Pattern for run_train_manual not found in trainer_menu.py." -ForegroundColor Red
+} else {
+    $newSrc = [regex]::Replace($src, $pattern, $newBlock + "`r`n`r`n`$2")
+    Set-Content -Path $trainerPath -Value $newSrc -Encoding UTF8
+    Write-Host "[OK] run_train_manual updated in scripts\trainer_menu.py."
+}
+Исключение при вызове "IsMatch" с "2" аргументами: "выполняется разбор "(?ms)def run_train_manual\(.*?)(^def main\(\) ->
+ None:)" - Лишние закрывающие скобки )."
+строка:1 знак:5
++ if (-not [regex]::IsMatch($src, $pattern)) {
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException
+    + FullyQualifiedErrorId : ArgumentException
+Исключение при вызове "IsMatch" с "2" аргументами: "выполняется разбор "(?ms)def run_train_manual\(.*?)(^def main\(\) -
+> None:)" - Лишние закрывающие скобки )."
+строка:1 знак:5
++ if (-not [regex]::IsMatch($src, $pattern)) {
++     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], MethodInvocationException
+    + FullyQualifiedErrorId : ArgumentException
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Коммит и пуш на GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "scripts\trainer_menu.py"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Trainer menu: print training summary in ТЗ_1.0 format for action 1"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115011331
+**********************

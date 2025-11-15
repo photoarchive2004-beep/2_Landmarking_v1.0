@@ -1,0 +1,113 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115025111
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 21124
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_025111.log
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $annotPath = Join-Path $root "1_ANNOTATOR.bat"
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "1) Читаю 1_ANNOTATOR.bat..." -ForegroundColor Cyan
+1) Читаю 1_ANNOTATOR.bat...
+PS D:\GM\tools\2_Landmarking_v1.0> $annotContent = Get-Content $annotPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Старый блок меню (как он есть сейчас)
+PS D:\GM\tools\2_Landmarking_v1.0> $oldMenu = @'
+rem ---- Menu ----
+echo.
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
+set /p CH=
+if /I "!CH!"=="Q" goto :EOF
+
+set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
+%PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+
+if exist "!TMP_SEL!" (
+    set /p SEL_LOC=<"!TMP_SEL!"
+    del /q "!TMP_SEL!" 2>nul
+)
+
+if not defined SEL_LOC (
+    echo [ERR] Invalid selection.
+    echo See "%LOG_DIR%\menu_pick_last.err"
+    pause
+    exit /b 2
+)
+
+set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # Новый блок: в режиме REVIEW_AUTO берём локальность из GM_LOCALITY
+PS D:\GM\tools\2_Landmarking_v1.0> $newMenu = @'
+rem ---- Menu ----
+echo.
+
+rem If called from trainer in REVIEW_AUTO mode, force given locality
+if /I "%GM_MODE%"=="REVIEW_AUTO" (
+    if defined GM_LOCALITY (
+        set "SEL_LOC=%GM_LOCALITY%"
+    )
+)
+
+if not defined SEL_LOC (
+    %PY% "%TOOL_DIR%\scripts\menu_list.py" --print --root "%ROOT%"
+    set /p CH=
+    if /I "!CH!"=="Q" goto :EOF
+
+    set "TMP_SEL=%TEMP%\gm_sel_%RANDOM%.txt"
+    %PY% "%TOOL_DIR%\scripts\menu_list.py" --pick !CH! --root "%ROOT%" 1> "!TMP_SEL!" 2> "%LOG_DIR%\menu_pick_last.err"
+
+    if exist "!TMP_SEL!" (
+        set /p SEL_LOC=<"!TMP_SEL!"
+        del /q "!TMP_SEL!" 2>nul
+    )
+
+    if not defined SEL_LOC (
+        echo [ERR] Invalid selection.
+        echo See "%LOG_DIR%\menu_pick_last.err"
+        pause
+        exit /b 2
+    )
+)
+
+set "PNG_DIR=%PHOTOS_DIR%\!SEL_LOC!\png"
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> if ($annotContent.Contains("GM_MODE") -and $annotContent.Contains("REVIEW_AUTO")) {
+    Write-Host "Похоже, поддержка REVIEW_AUTO уже есть. Файл не меняю." -ForegroundColor Yellow
+} else {
+    $updated = $annotContent.Replace($oldMenu, $newMenu)
+    if ($updated -eq $annotContent) {
+        Write-Host "[WARN] Не нашёл ожидаемый блок меню в 1_ANNOTATOR.bat. Файл не изменён." -ForegroundColor Yellow
+    } else {
+        Write-Host "2) Обновляю 1_ANNOTATOR.bat с поддержкой GM_MODE=REVIEW_AUTO..." -ForegroundColor Cyan
+        Set-Content -Path $annotPath -Value $updated -Encoding UTF8
+    }
+}
+2) Обновляю 1_ANNOTATOR.bat с поддержкой GM_MODE=REVIEW_AUTO...
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "3) git status / commit / push..." -ForegroundColor Cyan
+3) git status / commit / push...
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add "1_ANNOTATOR.bat" $logPath
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "feat: annotator respects GM_MODE=REVIEW_AUTO" 
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115025113
+**********************
