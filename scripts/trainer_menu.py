@@ -1,508 +1,81 @@
 ﻿from __future__ import annotations
 
+import argparse
 import csv
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import List, Dict, Any, Optional
 
 
-def get_landmark_root() -> Path:
-    """Landmarking root = parent of scripts/."""
+STATUS_FILE = "status/localities_status.csv"
+
+
+@dataclass
+class Locality:
+    locality: str
+    status: str
+    auto_quality: str
+    last_model_run: str
+    last_update: str
+    n_images: int
+    n_labeled: int
+
+
+def get_landmark_root(arg_root: Optional[str]) -> Path:
+    if arg_root:
+        return Path(arg_root).resolve()
+    # tools/2_Landmarking_v1.0/scripts/trainer_menu.py -> tools/2_Landmarking_v1.0
     return Path(__file__).resolve().parent.parent
 
 
-def load_localities_status(root: Path) -> Tuple[List[Dict[str, str]], Path]:
-    """
-    Load status/localities_status.csv, create empty header if missing.
+def read_last_base(landmark_root: Path) -> Optional[Path]:
+    cfg_path = landmark_root / "cfg" / "last_base.txt"
+    if not cfg_path.exists():
+        return None
+    text = cfg_path.read_text(encoding="utf-8").strip()
+    if not text:
+        return None
+    return Path(text)
 
-    Наполнение делает rebuild_localities_status.py (сканирует папки
-    локальностей и обновляет n_images, n_labeled и т.п.).
-    """
-    status_dir = root / "status"
-    status_dir.mkdir(parents=True, exist_ok=True)
-    csv_path = status_dir / "localities_status.csv"
 
-    rows: List[Dict[str, str]] = []
-    if not csv_path.exists():
-        # Только заголовок, если файла ещё нет.
-        with csv_path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(
-                [
-                    "locality",
-                    "status",
-                    "auto_quality",
-                    "last_model_run",
-                    "last_update",
-                    "n_images",
-                    "n_labeled",
-                ]
-            )
-        return rows, csv_path
-
-    with csv_path.open("r", newline="", encoding="utf-8") as f:
+def load_localities(landmark_root: Path) -> List[Locality]:
+    status_path = landmark_root / STATUS_FILE
+    if not status_path.exists():
+        return []
+    rows: List[Locality] = []
+    with status_path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if not row.get("locality"):
-                continue
-            rows.append(row)
-    return rows, csv_path
-
-
-def _safe_int(value: str, default: int = 0) -> int:
-    try:
-        return int(value)
-    except Exception:
-        return default
-
-
-def format_localities_block(rows: List[Dict[str, str]]) -> str:
-    """
-    Вернуть текстовый блок со списком локальностей, аккуратно выровненный.
-
-    Это информационный список для главного меню тренера
-    (Localities (photos/<locality>/png): ...).
-    """
-    if not rows:
-        return "Localities: (none found)\n"
-
-    # Выравниваем имя и статус по максимальной длине
-    name_width = max(len(r["locality"]) for r in rows)
-
-    status_labels: List[str] = []
-    for r in rows:
-        status = (r.get("status") or "").strip()
-        auto_q = (r.get("auto_quality") or "").strip()
-        if status.upper() == "AUTO" and auto_q:
-            status_labels.append(f"AUTO {auto_q}")
-        else:
-            status_labels.append(status or "")
-
-    status_width = max((len(s) for s in status_labels), default=0)
-    if status_width < 6:
-        status_width = 6
-
-    lines: List[str] = []
-    lines.append("Localities (photos/<locality>/png):\n")
-
-    for idx, (r, s_label) in enumerate(zip(rows, status_labels), start=1):
-        locality = r["locality"]
-        n_img = _safe_int((r.get("n_images") or "").strip() or "0")
-        n_lab = _safe_int((r.get("n_labeled") or "").strip() or "0")
-
-        # На всякий случай не даём проценту перевалить за 100
-        if n_lab > n_img:
-            n_lab_eff = n_img
-        else:
-            n_lab_eff = n_lab
-
-        if n_img > 0:
-            percent = int(round(100.0 * n_lab_eff / float(n_img)))
-        else:
-            percent = 0
-
-        name_part = locality.ljust(name_width)
-        status_part = s_label.ljust(status_width)
-        progress_part = f"[{n_lab}/{n_img}] {percent:3d}%"
-
-        # Между колонками ровно по 3 пробела
-        line = f"[{idx:2d}] {name_part}   {status_part}   {progress_part}"
-        lines.append(line)
-
-    return "\n".join(lines) + "\n"
-
-
-def _parse_simple_yaml(path: Path) -> Dict[str, object]:
-    """
-    Very small YAML reader for simple "key: value" lines.
-    No nesting, no lists, comments (# ...) allowed.
-    """
-    if not path.exists():
-        return {}
-
-    result: Dict[str, object] = {}
-    for raw in path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        if ":" not in line:
-            continue
-
-        key, value_raw = line.split(":", 1)
-        key = key.strip()
-        value_str = value_raw.strip()
-
-        # Strip quotes
-        if (
-            (value_str.startswith('"') and value_str.endswith('"'))
-            or (value_str.startswith("'") and value_str.endswith("'"))
-        ):
-            value_str = value_str[1:-1]
-
-        # Convert bool / int / float if possible
-        lower = value_str.lower()
-        if lower == "true":
-            value: object = True
-        elif lower == "false":
-            value = False
-        else:
             try:
-                if "." in value_str:
-                    value = float(value_str)
-                else:
-                    value = int(value_str)
-            except Exception:
-                value = value_str
-
-        result[key] = value
-
-    return result
-
-
-def show_model_settings(root: Path) -> None:
-    """
-    Пункт меню 5: показать настройки из config/hrnet_config.yaml
-    с простыми английскими пояснениями (как в ТЗ).
-    """
-    cfg_dir = root / "config"
-    cfg_dir.mkdir(parents=True, exist_ok=True)
-    cfg_path = cfg_dir / "hrnet_config.yaml"
-
-    # Если файла нет – создаём дефолтный, близкий к примеру из ТЗ
-    if not cfg_path.exists():
-        default_text = """# HRNet training config for GM Landmarking
-model_type: "hrnet_w32"
-input_size: 256  # 0 = do not resize (see resize_mode)
-resize_mode: "resize"  # "resize" or "original"
-keep_aspect_ratio: true
-batch_size: 8
-learning_rate: 0.0005
-max_epochs: 100
-train_val_split: 0.9
-flip_augmentation: true
-rotation_augmentation_deg: 15
-scale_augmentation: 0.3
-weight_decay: 0.0001
-"""
-        cfg_path.write_text(default_text, encoding="utf-8")
-
-    conf = _parse_simple_yaml(cfg_path)
-
-    print("=== Model settings (config/hrnet_config.yaml) ===\n")
-
-    def show_param(name: str, explanation_lines):
-        val = conf.get(name, "")
-        print(f"{name} = {val!r}")
-        for line in explanation_lines:
-            print(f"  - {line}")
-        print()
-
-    show_param(
-        "model_type",
-        [
-            "HRNet backbone type.",
-            'For example: "hrnet_w32" is a good default.',
-        ],
-    )
-    show_param(
-        "input_size",
-        [
-            "Target input size for the network in pixels.",
-            "If resize_mode = 'resize': images are scaled to this size.",
-            "If input_size = 0 and resize_mode = 'original': use original image size.",
-        ],
-    )
-    show_param(
-        "resize_mode",
-        [
-            "How to change image size before training.",
-            "'resize' - scale images to input_size.",
-            "'original' - keep original resolution (only safe padding/downscale if needed).",
-        ],
-    )
-    show_param(
-        "keep_aspect_ratio",
-        [
-            "If True: keep fish shape, no stretching by one axis.",
-        ],
-    )
-    show_param(
-        "batch_size",
-        [
-            "How many images are processed in one training step.",
-        ],
-    )
-    show_param(
-        "learning_rate",
-        [
-            "How fast the model learns.",
-            "Too high -> unstable, too low -> very slow.",
-        ],
-    )
-    show_param(
-        "max_epochs",
-        [
-            "Maximum number of passes through the training data.",
-        ],
-    )
-    show_param(
-        "train_val_split",
-        [
-            "Part of data used for training.",
-            "0.9 = 90% train, 10% validation.",
-        ],
-    )
-    show_param(
-        "flip_augmentation",
-        [
-            "Random horizontal flip of images during training.",
-        ],
-    )
-    show_param(
-        "rotation_augmentation_deg",
-        [
-            "Maximum random rotation in degrees during training.",
-        ],
-    )
-    show_param(
-        "scale_augmentation",
-        [
-            "Random zoom in/out (for example 0.3 = up to 30%).",
-        ],
-    )
-    show_param(
-        "weight_decay",
-        [
-            "Regularization to reduce overfitting.",
-        ],
-    )
-
-    print("To change these values:")
-    print('1) Open file "config/hrnet_config.yaml" with a text editor (for example Notepad).')
-    print("2) Change numbers or true/false values.")
-    print("3) Save the file.")
-    print("New training runs will automatically use the new settings.")
-    print("Do not change the parameter names, only their values.")
-    print()
+                n_images = int(row.get("n_images", "") or 0)
+            except ValueError:
+                n_images = 0
+            try:
+                n_labeled = int(row.get("n_labeled", "") or 0)
+            except ValueError:
+                n_labeled = 0
+            rows.append(
+                Locality(
+                    locality=row.get("locality", ""),
+                    status=row.get("status", ""),
+                    auto_quality=row.get("auto_quality", ""),
+                    last_model_run=row.get("last_model_run", ""),
+                    last_update=row.get("last_update", ""),
+                    n_images=n_images,
+                    n_labeled=n_labeled,
+                )
+            )
+    return rows
 
 
-def show_current_model_info(root: Path) -> None:
-    """
-    Пункт меню 4: информация о текущей модели по models/current/quality.json.
-
-    Если файла нет – выводим понятное сообщение.
-    Формат вывода соответствует примеру из ТЗ.
-    """
-    q_path = root / "models" / "current" / "quality.json"
-    print("Current model info:\n")
-
-    if not q_path.exists():
-        print("Model is not trained yet (models/current/quality.json not found).")
-        print()
-        return
-
-    try:
-        data = json.loads(q_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print("[ERR] Cannot read models/current/quality.json:")
-        print(f"      {exc}")
-        print()
-        return
-
-    run_id = data.get("run_id", "?")
-    # В quality.json модель может не быть прописана – подставляем дефолт.
-    model = data.get("model_type", "HRNet-W32 (18 keypoints)")
-
-    n_train = int(data.get("n_train_images", 0) or 0)
-    n_val = int(data.get("n_val_images", 0) or 0)
-
-    train_share = float(data.get("train_share", 0.0) or 0.0)
-    val_share = float(data.get("val_share", 0.0) or 0.0)
-
-    # PCK в процентах – стараемся сначала взять pck_r_percent.
-    pck_percent = data.get("pck_r_percent")
-    if pck_percent is None:
-        # Если есть только pck_r в виде доли 0.xx
-        pck_raw = float(data.get("pck_r", 0.0) or 0.0)
-        pck_percent = int(round(100.0 * pck_raw))
-    else:
-        pck_percent = int(pck_percent)
-
-    n_manual = int(data.get("n_manual_localities", 0) or 0)
-
-    print(f"Run id: {run_id}")
-    print(f"Model: {model}")
-    print()
-    print(f"Train images: {n_train} ({int(round(train_share * 100))}%)")
-    print(f"Val images:   {n_val} ({int(round(val_share * 100))}%)")
-    print()
-    print(f"PCK@R (validation): {pck_percent} %")
-    print()
-    print(f"Used MANUAL localities: {n_manual}")
-    print()
-
-
-def run_train_manual(root: Path) -> None:
-    """
-    Пункт меню 1: запустить scripts/train_hrnet.py.
-
-    На этом шаге train_hrnet.py пока только готовит датасет и выводит
-    сводку (как сейчас реализовано). Реальное обучение HRNet/MMPose
-    будет добавлено отдельным шагом, чтобы не усложнять сразу всё.
-    """
-    script = root / "scripts" / "train_hrnet.py"
-    if not script.exists():
-        print("[ERR] scripts/train_hrnet.py not found.")
-        print("Please check repository contents.")
-        print()
-        return
-
-    try:
-        rc = subprocess.call([sys.executable, str(script)])
-        if rc != 0:
-            print(f"[WARN] train_hrnet.py exited with code {rc}.")
-            print()
-    except Exception as exc:
-        print("[ERR] Cannot start train_hrnet.py:")
-        print(f"      {exc}")
-        print()
-
-
-def run_review_auto(root: Path) -> None:
-    """
-    Action 3: review AUTO locality in annotator (GM_MODE=REVIEW_AUTO)
-    according to ТЗ_1.0.
-    """
-    import csv
-    import os
-    import subprocess
-    from datetime import datetime
-
-    # Читаем статус локальностей
-    rows, csv_path = load_localities_status(root)
-    if not rows:
-        print("No localities registered in status/localities_status.csv.")
-        print("Nothing to review.")
-        print()
-        return
-
-    auto_rows = []
-    for row in rows:
-        status_raw = (row.get("status") or "").strip().upper()
-        if status_raw == "AUTO":
-            auto_rows.append(row)
-
-    if not auto_rows:
-        print("No AUTO localities to review.")
-        print()
-        return
-
-    print("AUTO localities:\n")
-    idx_width = len(str(len(auto_rows)))
-    name_width = max(len((r.get("locality") or "")) for r in auto_rows) + 2
-
-    for i, row in enumerate(auto_rows, 1):
-        locality = (row.get("locality") or "").strip()
-        auto_q = (row.get("auto_quality") or "").strip()
-        try:
-            n_images = int(row.get("n_images") or 0)
-        except Exception:
-            n_images = 0
-        try:
-            n_labeled = int(row.get("n_labeled") or 0)
-        except Exception:
-            n_labeled = 0
-        status_str = f"AUTO {auto_q}" if auto_q else "AUTO"
-        left = f"[{i:>{idx_width}d}] {locality.ljust(name_width)}"
-        right = f"({n_images} imgs, {n_labeled} csv)"
-        print(f"{left}{status_str.ljust(10)}{right}")
-    print()
-
-    choice = input("Select locality to review (or 0 to cancel): ").strip()
-    if not choice or choice in ("0", "Q", "q"):
-        print("Review cancelled.")
-        print()
-        return
-
-    try:
-        idx = int(choice)
-    except ValueError:
-        print("[ERR] Invalid selection.")
-        print()
-        return
-
-    if idx < 1 or idx > len(auto_rows):
-        print("[ERR] Locality number out of range.")
-        print()
-        return
-
-    selected = auto_rows[idx - 1]
-    locality = (selected.get("locality") or "").strip()
-    if not locality:
-        print("[ERR] Selected locality name is empty.")
-        print()
-        return
-
-    annotator = root / "1_ANNOTATOR.bat"
-    if not annotator.exists():
-        print("[ERR] 1_ANNOTATOR.bat not found.")
-        print()
-        return
-
-    env = os.environ.copy()
-    env["GM_LOCALITY"] = locality
-    env["GM_MODE"] = "REVIEW_AUTO"
-
-    print()
-    print(f'Starting annotator in REVIEW_AUTO mode for locality "{locality}"...')
-    print()
-
-    try:
-        # На Windows .bat безопаснее запускать через shell=True
-        rc = subprocess.call(str(annotator), env=env, shell=True)
-    except Exception as exc:
-        print("[ERR] Cannot launch 1_ANNOTATOR.bat:")
-        print(f"      {exc}")
-        print()
-        return
-
-    if rc != 0:
-        print(f"[WARN] Annotator exited with code {rc}.")
-        print("If you closed the window manually, review may be incomplete.")
-        print()
-
-    flag_dir = root / "status"
-    flag_path = flag_dir / f"review_done_{locality}.flag"
-
-    if not flag_path.exists():
-        print(f'Review for locality "{locality}" was not finished (no flag file).')
-        print("Status unchanged.")
-        print()
-        return
-
-    status_file = csv_path
-    if not status_file.exists():
-        print("[ERR] status/localities_status.csv not found.")
-        print("Cannot update status after review.")
-        print()
-        return
-
-    try:
-        with status_file.open("r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            fieldnames = reader.fieldnames or []
-            rows_all = list(reader)
-    except Exception as exc:
-        print("[ERR] Cannot read localities_status.csv for update:")
-        print(f"      {exc}")
-        print()
-        return
-
-    now_iso = datetime.now().isoformat(timespec="seconds")
-
-    if not fieldnames:
+def save_localities(landmark_root: Path, localities: List[Locality]) -> None:
+    status_path = landmark_root / STATUS_FILE
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    with status_path.open("w", encoding="utf-8", newline="") as f:
         fieldnames = [
             "locality",
             "status",
@@ -512,282 +85,329 @@ def run_review_auto(root: Path) -> None:
             "n_images",
             "n_labeled",
         ]
-
-    for row in rows_all:
-        if (row.get("locality") or "").strip() == locality:
-            row["status"] = "MANUAL"
-            row["auto_quality"] = ""
-            if "last_update" in fieldnames:
-                row["last_update"] = now_iso
-
-    try:
-        with status_file.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in rows_all:
-                writer.writerow(row)
-    except Exception as exc:
-        print("[ERR] Cannot write updated localities_status.csv:")
-        print(f"      {exc}")
-        print()
-        return
-
-    try:
-        flag_path.unlink()
-    except OSError:
-        pass
-
-    print(f'Locality "{locality}" marked as MANUAL (after review).')
-    print()
-
-def run_autolabel(root: Path) -> None:
-    """
-    Action 2: autolabel locality with current model.
-
-    Логика по ТЗ_1.0:
-    - показываем локальности со status "" или "AUTO";
-    - пользователь выбирает номер;
-    - проверяем модель и наличие PNG;
-    - вызываем scripts/infer_hrnet.py --locality <name>;
-    - если инференс завершился успешно (код 0), обновляем
-      status/localities_status.csv и печатаем сводку.
-    """
-    import csv
-    import json
-    import subprocess
-    import sys
-    from datetime import datetime
-
-    rows, csv_path = load_localities_status(root)
-    if not rows:
-        print("No localities registered in status/localities_status.csv.")
-        print("Nothing to autolabel.")
-        print()
-        return
-
-    # Кандидаты: status пустой или AUTO (MANUAL не трогаем)
-    candidates = []
-    for row in rows:
-        status_raw = (row.get("status") or "").strip().upper()
-        if status_raw == "" or status_raw == "AUTO":
-            candidates.append(row)
-
-    if not candidates:
-        print("No localities available for autolabel.")
-        print("Only MANUAL localities found.")
-        print()
-        return
-
-    print("Localities available for autolabel:\n")
-    idx_width = len(str(len(candidates)))
-    name_width = max(len((r.get("locality") or "")) for r in candidates) + 2
-    status_width = 10
-
-    for i, row in enumerate(candidates, 1):
-        locality = (row.get("locality") or "").strip()
-        status_raw = (row.get("status") or "").strip().upper()
-        auto_q = (row.get("auto_quality") or "").strip()
-        if status_raw == "AUTO":
-            status_str = f"AUTO {auto_q}" if auto_q else "AUTO"
-        else:
-            status_str = ""
-        try:
-            n_images = int(row.get("n_images") or 0)
-        except Exception:
-            n_images = 0
-        try:
-            n_labeled = int(row.get("n_labeled") or 0)
-        except Exception:
-            n_labeled = 0
-
-        left = f"[{i:>{idx_width}d}] {locality.ljust(name_width)}"
-        right = f"({n_images} imgs, {n_labeled} csv)"
-        print(f"{left}{status_str.ljust(status_width)}{right}")
-    print()
-
-    choice = input("Select locality number (or 0 to cancel): ").strip()
-    if not choice or choice in ("0", "Q", "q"):
-        print("Autolabel cancelled.")
-        print()
-        return
-
-    try:
-        idx = int(choice)
-    except ValueError:
-        print("[ERR] Invalid selection.")
-        print()
-        return
-
-    if idx < 1 or idx > len(candidates):
-        print("[ERR] Locality number out of range.")
-        print()
-        return
-
-    selected = candidates[idx - 1]
-    locality = (selected.get("locality") or "").strip()
-    try:
-        n_images = int(selected.get("n_images") or 0)
-    except Exception:
-        n_images = 0
-
-    # Проверяем модель
-    model_path = root / "models" / "current" / "hrnet_best.pth"
-    if not model_path.exists():
-        print("[ERR] Current model not found: models/current/hrnet_best.pth")
-        print("Run action 1 (Train) before autolabel.")
-        print()
-        return
-
-    # Проверяем, что есть хоть один PNG (по регистру локальностей)
-    if n_images <= 0:
-        print(f"[ERR] Locality \"{locality}\" has no PNG images (n_images = 0).")
-        print("Nothing to autolabel.")
-        print()
-        return
-
-    # Проверяем наличие скрипта инференса
-    script = root / "scripts" / "infer_hrnet.py"
-    if not script.exists():
-        print("[ERR] scripts/infer_hrnet.py not found.")
-        print("Autolabel is not available.")
-        print()
-        return
-
-    # Запускаем инференс
-    try:
-        rc = subprocess.call([sys.executable, str(script), "--locality", locality])
-    except Exception as exc:
-        print("[ERR] Cannot start infer_hrnet.py:")
-        print(f"      {exc}")
-        print()
-        return
-
-    if rc != 0:
-        print(f"[ERR] infer_hrnet.py exited with code {rc}.")
-        print("Autolabel failed, status file was not updated.")
-        print()
-        return
-
-    # Если дошли сюда — считаем, что инференс прошёл успешно и CSV созданы.
-    status_file = csv_path
-    if not status_file.exists():
-        print("[ERR] status/localities_status.csv not found.")
-        print("Cannot update locality status after autolabel.")
-        print()
-        return
-
-    quality_path = root / "models" / "current" / "quality.json"
-    if not quality_path.exists():
-        print("[ERR] models/current/quality.json not found.")
-        print("Cannot update auto_quality without model metrics.")
-        print()
-        return
-
-    try:
-        q_data = json.loads(quality_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print("[ERR] Cannot read models/current/quality.json:")
-        print(f"      {exc}")
-        print()
-        return
-
-    run_id = (q_data.get("run_id") or "").strip()
-    pck_percent = q_data.get("pck_r_percent")
-    if pck_percent is None:
-        try:
-            pck_raw = float(q_data.get("pck_r", 0.0) or 0.0)
-        except Exception:
-            pck_raw = 0.0
-        pck_percent = int(round(100.0 * pck_raw))
-    else:
-        try:
-            pck_percent = int(pck_percent)
-        except Exception:
-            pck_percent = 0
-
-    now_iso = datetime.now().isoformat(timespec="seconds")
-
-    rows_all = []
-    with status_file.open("r", newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        fieldnames = reader.fieldnames or []
-        for row in reader:
-            if (row.get("locality") or "").strip() == locality:
-                try:
-                    n_images_row = int(row.get("n_images") or 0)
-                except Exception:
-                    n_images_row = n_images
-                n_images_row = max(n_images_row, n_images)
-                row["status"] = "AUTO"
-                row["auto_quality"] = str(pck_percent)
-                row["last_model_run"] = run_id
-                row["last_update"] = now_iso
-                row["n_images"] = str(n_images_row)
-                row["n_labeled"] = str(n_images_row)
-            rows_all.append(row)
-
-    with status_file.open("w", newline="", encoding="utf-8") as f:
-        if not fieldnames:
-            fieldnames = ["locality", "status", "auto_quality", "last_model_run", "last_update", "n_images", "n_labeled"]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
-        for row in rows_all:
-            writer.writerow(row)
+        for loc in localities:
+            writer.writerow(
+                {
+                    "locality": loc.locality,
+                    "status": loc.status,
+                    "auto_quality": loc.auto_quality,
+                    "last_model_run": loc.last_model_run,
+                    "last_update": loc.last_update,
+                    "n_images": loc.n_images,
+                    "n_labeled": loc.n_labeled,
+                }
+            )
 
-    print(f'Autolabel done for locality "{locality}".')
-    print(f"Status: AUTO {pck_percent}")
+
+def format_status(loc: Locality) -> str:
+    if loc.status == "MANUAL":
+        return "MANUAL"
+    if loc.status == "AUTO":
+        if loc.auto_quality:
+            return f"AUTO {loc.auto_quality}"
+        return "AUTO"
+    return ""
+
+
+def calc_percent(loc: Locality) -> int:
+    if loc.n_images <= 0:
+        return 0
+    return int(round(100.0 * loc.n_labeled / max(1, loc.n_images)))
+
+
+def print_localities_block(localities: List[Locality]) -> None:
+    print()
+    print("Localities (photos/<locality>/png):")
+    print()
+    if not localities:
+        print("  (no localities found)")
+        return
+
+    # Выравнивание: аккуратные столбцы имени, статуса и счётчиков
+    max_name = max((len(loc.locality) for loc in localities), default=0)
+    name_width = max(max_name + 2, 24)  # минимум 24 символа
+    count_width = 16
+
+    for idx, loc in enumerate(localities, start=1):
+        percent = calc_percent(loc)
+        status_text = format_status(loc)
+        # [N] + пробелы
+        prefix = f"[{idx}] "
+        name_part = f"{prefix}{loc.locality}".ljust(len(prefix) + name_width)
+        count_part = f"[{loc.n_labeled}/{loc.n_images}] {percent:3d}%".ljust(count_width)
+        # статус в отдельном столбце
+        status_col = status_text if status_text else ""
+        line = f"{name_part}{status_col:10s}{count_part}"
+        print(line)
+
+
+def run_training(landmark_root: Path) -> None:
+    localities = load_localities(landmark_root)
+    manual_localities = [loc for loc in localities if loc.status == "MANUAL"]
+    if not manual_localities:
+        print()
+        print("No MANUAL localities found. Nothing to train on.")
+        return
+
+    train_script = landmark_root / "scripts" / "train_hrnet.py"
+    if not train_script.exists():
+        print()
+        print("[ERR] train_hrnet.py not found. Cannot start training.")
+        return
+
+    print()
+    print("=== HRNet training started (action 1: MANUAL localities) ===")
+    print()
+    cmd = [sys.executable, str(train_script)]
+    try:
+        subprocess.run(cmd, check=False)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERR] Training failed: {exc}")
+        return
+    print("=== HRNet training finished ===")
+
+
+def read_quality(landmark_root: Path) -> Dict[str, Any]:
+    quality_path = landmark_root / "models" / "current" / "quality.json"
+    if not quality_path.exists():
+        return {}
+    try:
+        data = json.loads(quality_path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {}
+        return data
+    except Exception:
+        return {}
+
+
+def choose_autolabel_locality(localities: List[Locality]) -> Optional[Locality]:
+    # Только локальности без статуса или с AUTO
+    candidates: List[Locality] = [
+        loc for loc in localities if loc.status in ("", "AUTO")
+    ]
+    print()
+    print("Localities available for autolabel:")
+    print()
+    if not candidates:
+        print("  (no localities available – only MANUAL localities found)")
+        return None
+
+    max_name = max((len(loc.locality) for loc in candidates), default=0)
+    name_width = max(max_name + 2, 24)
+
+    for idx, loc in enumerate(candidates, start=1):
+        status_text = format_status(loc)
+        status_block = status_text if status_text else ""
+        print(
+            f"[{idx}] {loc.locality.ljust(name_width)}  "
+            f"{status_block:8s}  ({loc.n_images} imgs, {loc.n_labeled} csv)"
+        )
+
+    print()
+    try:
+        choice = input("Select locality number (or 0 to cancel): ").strip()
+    except EOFError:
+        return None
+    if not choice:
+        return None
+    if not choice.isdigit():
+        print("Please enter a number.")
+        return None
+    idx = int(choice)
+    if idx <= 0:
+        return None
+    if idx > len(candidates):
+        print("No such locality.")
+        return None
+    return candidates[idx - 1]
+
+
+def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
+    localities = load_localities(landmark_root)
+    if not localities:
+        print()
+        print("No localities found in status/localities_status.csv.")
+        return
+
+    # Проверяем, есть ли обученная модель
+    model_path = landmark_root / "models" / "current" / "hrnet_best.pth"
+    if not model_path.exists():
+        print()
+        print("No trained model found (models/current/hrnet_best.pth is missing).")
+        print("Please run action 1 (Train) first.")
+        return
+
+    loc = choose_autolabel_locality(localities)
+    if not loc:
+        return
+
+    if base_localities is None:
+        base_localities = read_last_base(landmark_root)
+    if base_localities is None:
+        print()
+        print("Base localities folder is not set (cfg/last_base.txt is empty).")
+        return
+
+    png_dir = base_localities / loc.locality / "png"
+    if not png_dir.exists():
+        print()
+        print(f"Folder not found: {png_dir}")
+        return
+
+    png_list = sorted(png_dir.glob("*.png"))
+    if not png_list:
+        print()
+        print(f"No *.png images found in {png_dir}")
+        return
+
+    infer_script = landmark_root / "scripts" / "infer_hrnet.py"
+    if not infer_script.exists():
+        print()
+        print("[ERR] infer_hrnet.py not found. Cannot run autolabel.")
+        return
+
+    print()
+    print(f"=== Autolabel started for locality \"{loc.locality}\" ===")
     print()
 
-def main() -> None:
-    root = get_landmark_root()
-    rows, _ = load_localities_status(root)
+    cmd = [
+        sys.executable,
+        str(infer_script),
+        "--landmark-root",
+        str(landmark_root),
+        "--base-localities",
+        str(base_localities),
+        "--locality",
+        loc.locality,
+    ]
+    try:
+        result = subprocess.run(cmd, check=False)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[ERR] Autolabel failed: {exc}")
+        return
 
-    print("=== GM Landmarking: HRNet Trainer (v1.0) ===\n")
+    if result.returncode != 0:
+        print(f"[ERR] Autolabel script returned code {result.returncode}.")
+        return
+
+    # Пересчитываем n_images / n_labeled для выбранной локальности
+    png_list = sorted(png_dir.glob("*.png"))
+    n_images = len(png_list)
+    n_labeled = 0
+    for img_path in png_list:
+        csv_path = img_path.with_suffix(".csv")
+        if csv_path.exists():
+            n_labeled += 1
+
+    loc.n_images = n_images
+    loc.n_labeled = n_labeled
+
+    # Читаем quality.json
+    quality = read_quality(landmark_root)
+    auto_quality = ""
+    run_id = ""
+    if quality:
+        try:
+            pck_percent = int(round(float(quality.get("pck_r_percent", 0))))
+            auto_quality = str(pck_percent)
+        except Exception:
+            auto_quality = ""
+        run_id = str(quality.get("run_id", "") or "")
+
+    loc.status = "AUTO"
+    loc.auto_quality = auto_quality
+    loc.last_model_run = run_id
+    loc.last_update = datetime.now().isoformat(timespec="seconds")
+
+    save_localities(landmark_root, localities)
+
+    if auto_quality:
+        print(f'Autolabel done for locality "{loc.locality}".')
+        print(f"Status: AUTO {auto_quality}")
+    else:
+        print(f'Autolabel done for locality "{loc.locality}".')
+        print("Status: AUTO")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", dest="root", default=None)
+    parser.add_argument("--base", dest="base", default=None)
+    parser.add_argument("--base-localities", dest="base_localities", default=None)
+    args = parser.parse_args()
+
+    landmark_root = get_landmark_root(args.root)
+    base_localities: Optional[Path] = None
+    base_arg = args.base_localities or args.base
+    if base_arg:
+        base_localities = Path(base_arg)
+
+    localities = load_localities(landmark_root)
+
+    print("=== GM Landmarking: HRNet Trainer (v1.0) ===")
+    print()
     print("1) Train / Finetune model on MANUAL localities")
     print("2) Autolabel locality with current model")
     print("3) Review AUTO locality in annotator (set MANUAL by button)")
     print("4) Info about current model / metrics")
-    print("5) Model settings\n")
-    print("0) Quit\n")
-
+    print("5) Model settings")
+    print()
+    print("0) Quit")
+    print()
     choice = input("Select action: ").strip()
-    print()  # spacer
 
-    # Информационный список локальностей под меню (только для информации)
-    print(format_localities_block(rows))
+    # После выбора действия показываем список локальностей (для информации)
+    print_localities_block(localities)
 
-    if choice == "0" or choice.upper() == "Q":
-        return
-    elif choice == "1":
-        run_train_manual(root)
-        input("Press Enter to exit...")
+    if choice == "1":
+        run_training(landmark_root)
     elif choice == "2":
-        run_autolabel(root)
-        input("Press Enter to exit...")
+        run_autolabel(landmark_root, base_localities)
     elif choice == "3":
-        run_review_auto(root)
-        input("Press Enter to exit...")
+        print()
+        print("Action 3 (Review AUTO) is not implemented yet in this version.")
     elif choice == "4":
-        show_current_model_info(root)
-        input("Press Enter to exit...")
+        print()
+        quality = read_quality(landmark_root)
+        if not quality:
+            print("Model is not trained yet (models/current/quality.json not found).")
+        else:
+            print("Current model info:")
+            print()
+            print(f"Run id: {quality.get('run_id', '')}")
+            print("Model: HRNet-W32 (18 keypoints)")
+            n_train = quality.get("n_train_images", 0)
+            n_val = quality.get("n_val_images", 0)
+            train_share = quality.get("train_share", 0)
+            val_share = quality.get("val_share", 0)
+            try:
+                train_percent = int(round(float(train_share) * 100))
+            except Exception:
+                train_percent = 0
+            try:
+                val_percent = int(round(float(val_share) * 100))
+            except Exception:
+                val_percent = 0
+            print(f"Train images: {n_train} ({train_percent}%)")
+            print(f"Val images:   {n_val} ({val_percent}%)")
+            pck = quality.get("pck_r_percent", None)
+            if pck is not None:
+                try:
+                    pck_int = int(round(float(pck)))
+                except Exception:
+                    pck_int = 0
+                print()
+                print(f"PCK@R (validation): {pck_int} %")
     elif choice == "5":
-        show_model_settings(root)
-        input("Press Enter to exit...")
+        print()
+        print("Model settings are stored in config/hrnet_config.yaml.")
+        print("Edit this file with a text editor to change training parameters.")
     else:
-        print("This action is not implemented yet.")
-        print("Use option 5 to view settings.")
-        input("Press Enter to exit...")
+        # 0 или любая другая клавиша – просто выходим
+        return
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    except KeyboardInterrupt:
-        sys.exit(0)
-        main()
-    except KeyboardInterrupt:
-        sys.exit(0)
-
-
-
-
+    main()
