@@ -1,0 +1,99 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115170700
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 20132
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_step_hrnet_env_20251115_170700.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== GM Landmarking: настройка окружения для HRNet (numpy/Pillow/PyYAML) ==="
+=== GM Landmarking: настройка окружения для HRNet (numpy/Pillow/PyYAML) ===
+PS D:\GM\tools\2_Landmarking_v1.0> # 3. Выбираем Python, максимально согласованный с модулем
+PS D:\GM\tools\2_Landmarking_v1.0> $py = $null
+PS D:\GM\tools\2_Landmarking_v1.0> if (Test-Path ".\.venv_lm\Scripts\python.exe") {
+    $py = ".\.venv_lm\Scripts\python.exe"
+} elseif (Test-Path ".\.venv_gm\Scripts\python.exe") {
+    $py = ".\.venv_gm\Scripts\python.exe"
+} elseif (Test-Path ".\.venv\Scripts\python.exe") {
+    $py = ".\.venv\Scripts\python.exe"
+} else {
+    $py = "python"
+}
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Будет использован Python: $py"
+Будет использован Python: .\.venv_lm\Scripts\python.exe
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> $ErrorActionPreference = "Stop"
+PS D:\GM\tools\2_Landmarking_v1.0> try {
+    Write-Host "== Шаг 1. Проверка pip =="
+    & $py -m pip --version
+
+    Write-Host ""
+    Write-Host "== Шаг 2. Обновление pip (по возможности) =="
+    & $py -m pip install --upgrade pip
+
+    Write-Host ""
+    Write-Host "== Шаг 3. Установка/обновление numpy, Pillow, PyYAML =="
+    & $py -m pip install --upgrade numpy Pillow PyYAML
+
+    Write-Host ""
+    Write-Host "Установка библиотек для HRNet завершена."
+}
+catch {
+    Write-Host ""
+    Write-Host "!!! Ошибка при установке библиотек для HRNet-окружения."
+    Write-Host "Смотри этот же лог PowerShell: $psLog"
+    throw
+}
+== Шаг 1. Проверка pip ==
+
+
+== Шаг 2. Обновление pip (по возможности) ==
+
+
+== Шаг 3. Установка/обновление numpy, Pillow, PyYAML ==
+
+
+Установка библиотек для HRNet завершена.
+PS D:\GM\tools\2_Landmarking_v1.0> finally {
+    Write-Host ""
+    Write-Host "=== Завершение настройки окружения HRNet ==="
+    Stop-Transcript
+}
+>> TerminatingError(): "Имя "finally" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правильность написания имени, а также наличие и правильность пути, после чего повторите попытку."
+Имя "finally" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правильность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+finally : Имя "finally" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте
+правильность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ finally {
++ ~~~~~~~
+    + CategoryInfo          : ObjectNotFound: (finally:String) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 4. Коммитим новые логи и пушим на GitHub (ветка main)
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> $changes = git status --porcelain
+PS D:\GM\tools\2_Landmarking_v1.0> if ($changes) {
+    git add .
+    git commit -m "chore: HRNet env setup (numpy/Pillow/PyYAML logs)"
+} else {
+    Write-Host "Изменений в файлах нет, коммит не создаю."
+}
+
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
