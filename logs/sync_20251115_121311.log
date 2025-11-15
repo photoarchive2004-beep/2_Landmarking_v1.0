@@ -1,0 +1,53 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115121311
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 26744
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_121311.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Step: run Autolabel (trainer action 2) ==" -ForegroundColor Cyan
+== Step: run Autolabel (trainer action 2) ==
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Запускаем меню тренера (там выбери пункт 2: Autolabel, потом нужную локальность)
+PS D:\GM\tools\2_Landmarking_v1.0> .\2_TRAIN-INFER_HRNet.bat
+D:\GM\tools\2_Landmarking_v1.0>set "RC=0"
+
+D:\GM\tools\2_Landmarking_v1.0>if not "0" == "0" (
+echo [ERR] Trainer menu exited with code 0.
+ pause
+)
+
+D:\GM\tools\2_Landmarking_v1.0>endlocal
+
+D:\GM\tools\2_Landmarking_v1.0>exit /b 0
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Git status after Autolabel ==" -ForegroundColor Cyan
+== Git status after Autolabel ==
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Фиксируем изменения (localities_status.csv, quality.json, логи и т.п.) и пушим на GitHub
+PS D:\GM\tools\2_Landmarking_v1.0> git add -A
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "run: autolabel step (trainer action 2)" 2>$null
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115121329
+**********************
