@@ -1,0 +1,93 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115122741
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 12080
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_122740.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Step: wire actions 2 and 3 in trainer_menu ==" -ForegroundColor Cyan
+== Step: wire actions 2 and 3 in trainer_menu ==
+PS D:\GM\tools\2_Landmarking_v1.0> # 2) Обновляемся с GitHub на всякий случай
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+        modified:   logs/sync_20251115_121311.log
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+        logs/sync_20251115_122740.log
+
+no changes added to commit (use "git add" and/or "git commit -a")
+PS D:\GM\tools\2_Landmarking_v1.0> git fetch origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> git pull origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Подключаем run_autolabel и run_review_auto к меню тренера
+PS D:\GM\tools\2_Landmarking_v1.0> $root = Get-Location
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = Join-Path $root "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $trainerPath)) {
+    Write-Host "[ERR] scripts\trainer_menu.py not found." -ForegroundColor Red
+    Stop-Transcript
+    return
+}
+PS D:\GM\tools\2_Landmarking_v1.0> $src = Get-Content $trainerPath -Raw
+PS D:\GM\tools\2_Landmarking_v1.0> # Фрагмент, как он есть сейчас: после 1-й опции сразу идёт 4-я
+PS D:\GM\tools\2_Landmarking_v1.0> $old = @'
+    elif choice == "1":
+        run_train_manual(root)
+    elif choice == "4":
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # Новый фрагмент: между 1 и 4 появятся 2 и 3
+PS D:\GM\tools\2_Landmarking_v1.0> $new = @'
+    elif choice == "1":
+        run_train_manual(root)
+    elif choice == "2":
+        run_autolabel(root)
+    elif choice == "3":
+        run_review_auto(root)
+    elif choice == "4":
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> $idx = $src.IndexOf($old)
+PS D:\GM\tools\2_Landmarking_v1.0> if ($idx -lt 0) {
+    Write-Host "[ERR] Не нашёл ожидаемый блок выбора в trainer_menu.py. Ничего не меняю." -ForegroundColor Red
+} else {
+    $before = $src.Substring(0, $idx)
+    $after  = $src.Substring($idx + $old.Length)
+    $srcNew = $before + $new + $after
+
+    Set-Content -Path $trainerPath -Value $srcNew -Encoding UTF8
+    Write-Host "[OK] trainer_menu.py: действия 2 и 3 подключены к меню." -ForegroundColor Green
+}
+[ERR] Не нашёл ожидаемый блок выбора в trainer_menu.py. Ничего не меняю.
+PS D:\GM\tools\2_Landmarking_v1.0> # 4) Коммит и пуш
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "`n== Git status before commit ==" -ForegroundColor Cyan
+
+== Git status before commit ==
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add -A
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "feat: wire autolabel/review actions in trainer menu"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115122744
+**********************
