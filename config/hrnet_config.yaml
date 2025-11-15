@@ -1,21 +1,15 @@
-﻿model_type: "hrnet_w32"          # HRNet backbone type. W32 is a good default.
+﻿model_type: "hrnet_w32"          # HRNet backbone type (W32 is standard in literature).
 
-input_size: 512                  # Target input size in pixels (0 = do not resize).
-resize_mode: "resize"            # "resize" or "original".
-keep_aspect_ratio: true          # Keep fish shape, no stretching.
+input_size: 1024                 # Target input size in pixels (0 = do not resize).
+resize_mode: "resize"            # Keep aspect ratio and pad to square.
+keep_aspect_ratio: true          # No stretching of the fish.
 
-batch_size: 4                    # ~тот же расход VRAM, что у 256x256 с batch_size=16 на RTX 3060 12 GB.
-learning_rate: 0.0005            # How fast the model learns.
-max_epochs: 100                  # Maximum number of passes through the training data.
-train_val_split: 0.9             # 0.9 = 90% train, 10% validation.
+batch_size: 2                    # Tuned for RTX 3060 12 GB with 1024x1024 input.
+learning_rate: 0.0005            # Typical LR for HRNet landmark training.
+max_epochs: 150                  # Up to 150 epochs (можно останавливать вручную раньше).
+train_val_split: 0.9             # 90% train, 10% validation (как в ТЗ).
 
 flip_augmentation: true          # Random horizontal flip during training.
-rotation_augmentation_deg: 15    # Max random rotation in degrees.
+rotation_augmentation_deg: 15    # Mild rotations (preserved fish on tray).
 scale_augmentation: 0.3          # Random zoom in/out up to 30%.
-weight_decay: 0.0001             # Regularization to reduce overfitting.
-
-# To change these values:
-# 1) Edit this file "config/hrnet_config.yaml".
-# 2) Save the file.
-# New training runs will automatically use the new settings.
-# Do not change the parameter names, only their values.
+weight_decay: 0.0001             # Regularization, стандартное значение для HRNet.

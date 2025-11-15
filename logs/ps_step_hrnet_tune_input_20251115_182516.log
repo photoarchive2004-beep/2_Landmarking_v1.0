@@ -1,0 +1,114 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115182516
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 8532
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_step_hrnet_tune_input_20251115_182516.log
+PS D:\GM\tools\2_Landmarking_v1.0> # Путь к конфигу HRNet
+PS D:\GM\tools\2_Landmarking_v1.0> $cfgPath = "config\hrnet_config.yaml"
+PS D:\GM\tools\2_Landmarking_v1.0> if (-not (Test-Path $cfgPath)) {
+    # Если файла нет, создаём его с нужными параметрами (по ТЗ)
+    @'
+model_type: "hrnet_w32"
+input_size: 1536
+resize_mode: "resize"
+keep_aspect_ratio: true
+batch_size: 1
+learning_rate: 0.0005
+max_epochs: 100
+train_val_split: 0.9
+flip_augmentation: true
+rotation_augmentation_deg: 15.0
+scale_augmentation: 0.3
+weight_decay: 0.0001
+'@ | Set-Content -Path $cfgPath -Encoding UTF8
+}
+PS D:\GM\tools\2_Landmarking_v1.0> else {
+    # Если файл уже есть, аккуратно правим только input_size и batch_size
+    $cfg = Get-Content $cfgPath
+
+    if ($cfg -match 'input_size\s*:') {
+        $cfg = $cfg -replace 'input_size\s*:\s*\d+(\.\d+)?', 'input_size: 1536'
+    }
+    else {
+        $cfg += 'input_size: 1536'
+    }
+
+    if ($cfg -match 'batch_size\s*:') {
+        $cfg = $cfg -replace 'batch_size\s*:\s*\d+(\.\d+)?', 'batch_size: 1'
+    }
+    else {
+        $cfg += 'batch_size: 1'
+    }
+
+    $cfg | Set-Content -Path $cfgPath -Encoding UTF8
+}
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правиль
+ность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правил
+ьность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\GM\tools\2_Landmarking_v1.0> # Быстрая проверка
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Текущий config\hrnet_config.yaml ==="
+=== Текущий config\hrnet_config.yaml ===
+PS D:\GM\tools\2_Landmarking_v1.0> Get-Content $cfgPath
+model_type: "hrnet_w32"          # HRNet backbone type. W32 is a good default.
+
+input_size: 512                  # Target input size in pixels (0 = do not resize).
+resize_mode: "resize"            # "resize" or "original".
+keep_aspect_ratio: true          # Keep fish shape, no stretching.
+
+batch_size: 4                    # ~тот же расход VRAM, что у 256x256 с batch_size=16 на RTX 3060 12 GB.
+learning_rate: 0.0005            # How fast the model learns.
+max_epochs: 100                  # Maximum number of passes through the training data.
+train_val_split: 0.9             # 0.9 = 90% train, 10% validation.
+
+flip_augmentation: true          # Random horizontal flip during training.
+rotation_augmentation_deg: 15    # Max random rotation in degrees.
+scale_augmentation: 0.3          # Random zoom in/out up to 30%.
+weight_decay: 0.0001             # Regularization to reduce overfitting.
+
+# To change these values:
+# 1) Edit this file "config/hrnet_config.yaml".
+# 2) Save the file.
+# New training runs will automatically use the new settings.
+# Do not change the parameter names, only their values.
+PS D:\GM\tools\2_Landmarking_v1.0> # Git: фиксируем изменения и пушим
+PS D:\GM\tools\2_Landmarking_v1.0> git status
+
+PS D:\GM\tools\2_Landmarking_v1.0> git add -A
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Tune HRNet config: input_size=1536, batch_size=1 for high-res fish photos" --allow-empty
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115182520
+**********************
