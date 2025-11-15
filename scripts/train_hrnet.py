@@ -1,369 +1,339 @@
-﻿from __future__ import annotations
+﻿"""
+HRNet training script for GM Landmarking.
+
+Implements ТЗ_1.0, действие 1 (обучение по MANUAL локальностям),
+но без реального обучения нейросети: создаётся структура файлов,
+датасет и заглушечные метрики, чтобы конвейер не падал.
+"""
 
 import csv
 import json
 import sys
-from dataclasses import dataclass
-from datetime import datetime
+import random
 from pathlib import Path
-from typing import Dict, List, Tuple
+from datetime import datetime
+
+try:
+    import yaml  # type: ignore
+except ImportError:  # pragma: no cover
+    yaml = None  # will be checked in main()
 
 
-def get_landmark_root() -> Path:
-    """Return tools/2_Landmarking_v1.0 folder (parent of scripts/)."""
-    return Path(__file__).resolve().parent.parent
+LANDMARK_ROOT = Path(__file__).resolve().parent.parent
+STATUS_CSV = LANDMARK_ROOT / "status" / "localities_status.csv"
+CFG_LAST_BASE = LANDMARK_ROOT / "cfg" / "last_base.txt"
+CONFIG_YAML = LANDMARK_ROOT / "config" / "hrnet_config.yaml"
+MODELS_CURRENT = LANDMARK_ROOT / "models" / "current"
+MODELS_HISTORY = LANDMARK_ROOT / "models" / "history"
+DATASETS_ROOT = LANDMARK_ROOT / "datasets"
+LOGS_ROOT = LANDMARK_ROOT / "logs"
+TRAIN_LOG_LAST = LOGS_ROOT / "train_hrnet_last.log"
 
 
-def get_base_localities(root: Path) -> Path:
-    """
-    Read base_localities from cfg/last_base.txt.
+def ensure_dirs() -> None:
+    """Make sure standard folders exist (defensive, init_structure.py should already do this)."""
+    for p in (MODELS_CURRENT, MODELS_HISTORY, DATASETS_ROOT, LOGS_ROOT):
+        p.mkdir(parents=True, exist_ok=True)
 
-    This file is created by 1_ANNOTATOR.bat / 2_TRAIN-INFER_HRNet.bat,
-    as described in ТЗ_1.0.
-    """
-    cfg_dir = root / "cfg"
-    last_base = cfg_dir / "last_base.txt"
-    if not last_base.exists():
-        raise RuntimeError("cfg/last_base.txt not found.")
-    text = last_base.read_text(encoding="utf-8").strip()
+
+def log_line(message: str, *, also_print: bool = True) -> None:
+    """Append message to logs/train_hrnet_last.log and optionally print to console."""
+    LOGS_ROOT.mkdir(parents=True, exist_ok=True)
+    line = f"[{datetime.now().isoformat(timespec='seconds')}] {message}"
+    with TRAIN_LOG_LAST.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")
+    if also_print:
+        print(message)
+
+
+def load_config():
+    """Load hrnet_config.yaml, return dict with defaults if something is missing."""
+    if yaml is None:
+        log_line("ERROR: PyYAML is not installed. Please install 'pyyaml' in the landmarking environment.")
+        sys.exit(1)
+
+    if not CONFIG_YAML.exists():
+        log_line("ERROR: config/hrnet_config.yaml not found. Please run 2_TRAIN-INFER_HRNet.bat again.")
+        sys.exit(1)
+
+    with CONFIG_YAML.open("r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    # Default values from ТЗ_1.0
+    cfg_defaults = {
+        "model_type": "hrnet_w32",
+        "input_size": 256,
+        "resize_mode": "resize",
+        "keep_aspect_ratio": True,
+        "batch_size": 8,
+        "learning_rate": 0.0005,
+        "max_epochs": 100,
+        "train_val_split": 0.9,
+        "flip_augmentation": True,
+        "rotation_augmentation_deg": 15,
+        "scale_augmentation": 0.3,
+        "weight_decay": 0.0001,
+    }
+
+    for k, v in cfg_defaults.items():
+        cfg.setdefault(k, v)
+
+    return cfg
+
+
+def read_base_localities() -> Path:
+    """Read base localities path from cfg/last_base.txt."""
+    if not CFG_LAST_BASE.exists():
+        log_line("ERROR: cfg/last_base.txt not found. Please select base folder in 2_TRAIN-INFER_HRNet.bat.")
+        sys.exit(1)
+    text = CFG_LAST_BASE.read_text(encoding="utf-8").strip()
     if not text:
-        raise RuntimeError("cfg/last_base.txt is empty.")
-    return Path(text)
+        log_line("ERROR: cfg/last_base.txt is empty. Please re-run 2_TRAIN-INFER_HRNet.bat and choose folder with localities.")
+        sys.exit(1)
+    base = Path(text)
+    if not base.exists():
+        log_line(f"ERROR: Base localities folder does not exist: {base}")
+        sys.exit(1)
+    return base
 
 
-def load_localities_status(root: Path) -> Tuple[List[Dict[str, str]], Path]:
-    """Load status/localities_status.csv into a list of dicts."""
-    status_dir = root / "status"
-    csv_path = status_dir / "localities_status.csv"
-    rows: List[Dict[str, str]] = []
-    if not csv_path.exists():
-        return rows, csv_path
-    with csv_path.open("r", newline="", encoding="utf-8") as f:
+def read_localities_status():
+    """Read status/localities_status.csv and return list of dict rows."""
+    if not STATUS_CSV.exists():
+        log_line("ERROR: status/localities_status.csv not found. Please run annotator or trainer menu again.")
+        sys.exit(1)
+
+    rows = []
+    with STATUS_CSV.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
+            # Normalize keys just in case
+            row = { (k or "").strip(): (v or "").strip() for k, v in row.items() }
             if not row.get("locality"):
                 continue
             rows.append(row)
-    return rows, csv_path
+    return rows
 
 
-@dataclass
-class Sample:
-    image: Path
-    csv: Path
-    locality: str
-
-
-def collect_manual_samples(root: Path, base_localities: Path) -> Tuple[List[Sample], int]:
+def collect_manual_pairs(base_localities: Path, rows):
     """
-    Collect all (png, csv) pairs for localities with status == 'MANUAL'.
-    """
-    rows, _ = load_localities_status(root)
-    manual_rows = [
-        r
-        for r in rows
-        if (r.get("status") or "").strip().upper() == "MANUAL"
-    ]
+    From MANUAL localities collect (img_path, csv_path, locality) pairs.
 
-    samples: List[Sample] = []
-    for row in manual_rows:
-        loc = (row.get("locality") or "").strip()
-        if not loc:
+    Use only images which have corresponding *.csv.
+    """
+    manual_localities = [r for r in rows if r.get("status") == "MANUAL"]
+    if not manual_localities:
+        log_line("No MANUAL localities found in localities_status.csv. Nothing to train.")
+        return [], 0
+
+    pairs = []
+    skipped_localities = []
+    for r in manual_localities:
+        loc_name = r["locality"]
+        png_dir = base_localities / loc_name / "png"
+        if not png_dir.exists():
+            skipped_localities.append(loc_name)
+            log_line(f"WARNING: Locality folder not found on disk, skipping: {png_dir}", also_print=False)
             continue
-        png_dir = base_localities / loc / "png"
-        if not png_dir.is_dir():
-            continue
-        for img in sorted(png_dir.glob("*.png")):
-            csv_path = img.with_suffix(".csv")
+
+        # Collect *.png (и при необходимости *.jpg)
+        images = list(png_dir.glob("*.png")) + list(png_dir.glob("*.jpg"))
+        used_here = 0
+        for img_path in images:
+            csv_path = img_path.with_suffix(".csv")
             if not csv_path.exists():
                 continue
-            samples.append(Sample(image=img, csv=csv_path, locality=loc))
+            pairs.append((img_path, csv_path, loc_name))
+            used_here += 1
 
-    return samples, len(manual_rows)
+        log_line(f"Locality '{loc_name}': {used_here} labeled images used for training.", also_print=False)
 
+    if skipped_localities:
+        log_line("Some MANUAL localities were skipped because folders were not found. See log for details.", also_print=True)
 
-def read_hrnet_config(root: Path) -> Tuple[float, str]:
-    """
-    Read train_val_split and model_type from config/hrnet_config.yaml.
+    n_manual = len(manual_localities) - len(skipped_localities)
+    if not pairs:
+        log_line("No labeled images found for MANUAL localities. Nothing to train.")
+        return [], n_manual
 
-    Very small parser: only simple 'key: value' lines are supported.
-    """
-    cfg_path = root / "config" / "hrnet_config.yaml"
-    default_split = 0.9
-    default_model = "HRNet-W32 (18 keypoints)"
-
-    if not cfg_path.exists():
-        return default_split, default_model
-
-    train_split = default_split
-    model_name = default_model
-
-    for raw in cfg_path.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or ":" not in line:
-            continue
-        key, value_raw = line.split(":", 1)
-        key = key.strip()
-        value_str = value_raw.strip()
-
-        # strip quotes
-        if (
-            (value_str.startswith('"') and value_str.endswith('"'))
-            or (value_str.startswith("'") and value_str.endswith("'"))
-        ):
-            value_str = value_str[1:-1]
-
-        if key == "train_val_split":
-            try:
-                v = float(value_str)
-                if 0.0 < v < 1.0:
-                    train_split = v
-            except Exception:
-                pass
-        elif key == "model_type":
-            if value_str:
-                model_name = value_str
-
-    return train_split, model_name
+    return pairs, n_manual
 
 
-def split_dataset(n_items: int, train_share: float) -> Tuple[int, int]:
-    """
-    Compute train/val sizes with basic protection against edge cases.
-    """
-    if n_items <= 0:
-        return 0, 0
-    n_train = int(round(n_items * train_share))
-    if n_train <= 0:
-        n_train = 1
-    if n_train >= n_items:
-        n_train = n_items - 1 if n_items > 1 else n_items
-    n_val = n_items - n_train
-    return n_train, n_val
+def split_dataset(pairs, train_val_split: float, run_id: str):
+    """Shuffle pairs and split into train/val according to train_val_split."""
+    total = len(pairs)
+    if total == 0:
+        return [], [], 0, 0, 0.0, 0.0
+
+    random.shuffle(pairs)
+    n_train = max(1, int(round(total * float(train_val_split))))
+    if n_train >= total and total > 1:
+        n_train = total - 1
+    n_val = total - n_train
+
+    train_pairs = pairs[:n_train]
+    val_pairs = pairs[n_train:]
+
+    train_share = n_train / total
+    val_share = n_val / total
+
+    # Save dataset description to datasets/
+    DATASETS_ROOT.mkdir(parents=True, exist_ok=True)
+    train_list_path = DATASETS_ROOT / f"hrnet_train_{run_id}.txt"
+    val_list_path = DATASETS_ROOT / f"hrnet_val_{run_id}.txt"
+
+    def write_list(path, items):
+        with path.open("w", encoding="utf-8") as f:
+            for img_path, csv_path, locality in items:
+                f.write(f"{img_path};{csv_path};{locality}\n")
+
+    write_list(train_list_path, train_pairs)
+    write_list(val_list_path, val_pairs)
+
+    log_line(f"Dataset saved: {train_list_path.name} ({n_train} images), {val_list_path.name} ({n_val} images).", also_print=False)
+
+    return train_pairs, val_pairs, n_train, n_val, train_share, val_share
 
 
-def write_dataset_lists(
-    datasets_root: Path,
-    run_id: str,
-    train_samples: List[Sample],
-    val_samples: List[Sample],
-) -> None:
-    """
-    Save simple CSV lists for train/val inside datasets/<run_id>/.
+def write_history_and_current(run_id: str,
+                              cfg: dict,
+                              n_manual_localities: int,
+                              n_train_images: int,
+                              n_val_images: int,
+                              train_share: float,
+                              val_share: float):
+    """Create history folder, dummy model, metrics and current model info."""
+    MODELS_HISTORY.mkdir(parents=True, exist_ok=True)
+    MODELS_CURRENT.mkdir(parents=True, exist_ok=True)
 
-    Format: locality,image,csv
-    where image/csv are file names (no absolute paths).
-    """
-    run_dir = datasets_root / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
-
-    def _write(name: str, samples: List[Sample]) -> None:
-        path = run_dir / f"{name}_list.csv"
-        with path.open("w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["locality", "image", "csv"])
-            for s in samples:
-                writer.writerow([s.locality, s.image.name, s.csv.name])
-
-    _write("train", train_samples)
-    _write("val", val_samples)
-
-
-def ensure_model_dirs(root: Path, run_id: str) -> Tuple[Path, Path]:
-    """
-    Create models/history/<run_id>/ and models/current/ folders.
-    """
-    models_dir = root / "models"
-    history_dir = models_dir / "history" / run_id
-    current_dir = models_dir / "current"
+    history_dir = MODELS_HISTORY / run_id
     history_dir.mkdir(parents=True, exist_ok=True)
-    current_dir.mkdir(parents=True, exist_ok=True)
-    return history_dir, current_dir
 
+    # Dummy model file
+    hrnet_best_history = history_dir / "hrnet_best.pth"
+    with hrnet_best_history.open("wb") as f:
+        f.write(b"This is a placeholder HRNet model file. Replace with real trained weights.\n")
 
-def write_train_config(
-    path: Path,
-    run_id: str,
-    n_manual: int,
-    n_train: int,
-    n_val: int,
-    split: float,
-    model_name: str,
-) -> None:
-    """
-    Very small YAML-like train_config.yaml for history.
-    """
-    lines = [
-        f"run_id: {run_id}",
-        f"model_type: {model_name}",
-        f"n_manual_localities: {n_manual}",
-        f"n_train_images: {n_train}",
-        f"n_val_images: {n_val}",
-        f"train_val_split: {split:.3f}",
-        "note: placeholder training (neural network is not implemented yet)",
-    ]
-    text = "\n".join(lines) + "\n"
-    path.write_text(text, encoding="utf-8")
-
-
-def main() -> int:
-    root = get_landmark_root()
-    try:
-        base_localities = get_base_localities(root)
-    except Exception as exc:
-        print("[ERR] Base localities path is not configured.")
-        print(f"      {exc}")
-        return 1
-
-    samples, n_manual = collect_manual_samples(root, base_localities)
-    n_total = len(samples)
-
-    if n_manual == 0 or n_total == 0:
-        print("No MANUAL localities with PNG+CSV pairs found.")
-        print("Nothing to train.")
-        return 0
-
-    train_split, model_name = read_hrnet_config(root)
-
-    # deterministic split: sort by (locality, image name)
-    samples_sorted = sorted(samples, key=lambda s: (s.locality, s.image.name))
-    n_train, n_val = split_dataset(len(samples_sorted), train_split)
-    train_samples = samples_sorted[:n_train]
-    val_samples = samples_sorted[n_train:]
-
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-    history_dir, current_dir = ensure_model_dirs(root, run_id)
-
-    datasets_root = root / "datasets"
-    write_dataset_lists(datasets_root, run_id, train_samples, val_samples)
-
-    # placeholder model file
-    model_path = history_dir / "hrnet_best.pth"
-    model_path.write_bytes(b"")
-
-    if n_total > 0:
-        train_share = float(n_train) / float(n_total)
-        val_share = float(n_val) / float(n_total)
-    else:
-        train_share = 0.0
-        val_share = 0.0
-
+    # Metrics (placeholder PCK@R = 0.0)
     pck_r = 0.0
-    pck_r_percent = int(round(pck_r * 100.0))
+    pck_r_percent = int(round(pck_r * 100))
 
     metrics = {
         "run_id": run_id,
-        "model_type": model_name,
         "pck_r": pck_r,
         "pck_r_percent": pck_r_percent,
-        "n_train_images": n_train,
-        "n_val_images": n_val,
-        "train_share": train_share,
-        "val_share": val_share,
-        "n_manual_localities": n_manual,
+        "n_train_images": n_train_images,
+        "n_val_images": n_val_images,
+        "train_share": round(train_share, 4),
+        "val_share": round(val_share, 4),
+        "n_manual_localities": n_manual_localities,
+        "model_type": cfg.get("model_type", "hrnet_w32"),
     }
-
     metrics_path = history_dir / "metrics.json"
-    metrics_path.write_text(
-        json.dumps(metrics, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    with metrics_path.open("w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
 
+    # Save training config snapshot
+    train_config_path = history_dir / "train_config.yaml"
+    try:
+        if yaml is not None:
+            with train_config_path.open("w", encoding="utf-8") as f:
+                yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+        else:  # pragma: no cover
+            with train_config_path.open("w", encoding="utf-8") as f:
+                f.write("# hrnet_config snapshot not available (PyYAML missing)\n")
+    except Exception as exc:  # pragma: no cover
+        log_line(f"WARNING: Failed to write train_config.yaml: {exc}", also_print=False)
+
+    # Training log inside history
     train_log_path = history_dir / "train_log.txt"
     with train_log_path.open("w", encoding="utf-8") as f:
+        f.write(f"HRNet training run (placeholder implementation)\n")
         f.write(f"Run id: {run_id}\n")
-        f.write(f"Base localities: {base_localities}\n")
-        f.write(f"Manual localities: {n_manual}\n")
-        f.write(f"Total samples (PNG+CSV): {n_total}\n")
-        f.write(f"Train images: {n_train}\n")
-        f.write(f"Val images: {n_val}\n")
-        f.write("NOTE: placeholder training, neural network is not implemented yet.\n")
+        f.write(f"Model type: {cfg.get('model_type', 'hrnet_w32')}\n")
+        f.write(f"Train images: {n_train_images}\n")
+        f.write(f"Val images: {n_val_images}\n")
+        f.write(f"Train share: {train_share:.3f}\n")
+        f.write(f"Val share: {val_share:.3f}\n")
+        f.write(f"MANUAL localities used: {n_manual_localities}\n")
+        f.write("\n")
+        f.write("NOTE: This is a placeholder. Real HRNet training is not implemented yet.\n")
 
-    train_config_path = history_dir / "train_config.yaml"
-    write_train_config(
-        train_config_path,
+    # Copy model to models/current/hrnet_best.pth
+    hrnet_best_current = MODELS_CURRENT / "hrnet_best.pth"
+    hrnet_best_current.write_bytes(hrnet_best_history.read_bytes())
+
+    quality = {
+        "run_id": run_id,
+        "pck_r": pck_r,
+        "pck_r_percent": pck_r_percent,
+        "n_train_images": n_train_images,
+        "n_val_images": n_val_images,
+        "train_share": round(train_share, 4),
+        "val_share": round(val_share, 4),
+        "n_manual_localities": n_manual_localities,
+    }
+    quality_path = MODELS_CURRENT / "quality.json"
+    with quality_path.open("w", encoding="utf-8") as f:
+        json.dump(quality, f, indent=2)
+
+    return pck_r_percent
+
+
+def main():
+    ensure_dirs()
+    log_line("=== HRNet training started (action 1: MANUAL localities) ===")
+
+    cfg = load_config()
+    train_val_split = float(cfg.get("train_val_split", 0.9))
+
+    base_localities = read_base_localities()
+    log_line(f"Base localities folder: {base_localities}", also_print=False)
+
+    rows = read_localities_status()
+    pairs, n_manual_localities = collect_manual_pairs(base_localities, rows)
+    if not pairs:
+        # Message already logged by collect_manual_pairs
+        return
+
+    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    train_pairs, val_pairs, n_train, n_val, train_share, val_share = split_dataset(
+        pairs, train_val_split, run_id
+    )
+    total = len(pairs)
+
+    # Summary to log
+    log_line(f"Total labeled images: {total}", also_print=False)
+    log_line(f"Train images: {n_train} ({train_share*100:.1f}%)", also_print=False)
+    log_line(f"Val images: {n_val} ({val_share*100:.1f}%)", also_print=False)
+
+    # Here should be real HRNet/MMPose training.
+    # Placeholder: just write files with dummy metrics so that pipeline is functional.
+    pck_r_percent = write_history_and_current(
         run_id,
-        n_manual,
-        n_train,
-        n_val,
-        train_split,
-        model_name,
+        cfg,
+        n_manual_localities=n_manual_localities,
+        n_train_images=n_train,
+        n_val_images=n_val,
+        train_share=train_share,
+        val_share=val_share,
     )
 
-    current_model_path = current_dir / "hrnet_best.pth"
-    try:
-        data = model_path.read_bytes()
-        current_model_path.write_bytes(data)
-    except Exception:
-        current_model_path.write_bytes(b"")
-
-    quality_path = current_dir / "quality.json"
-    quality_path.write_text(
-        json.dumps(metrics, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
-
-    # Detailed summary is printed by trainer_menu.run_train_manual().
-    return 0
-
-
-if __name__ == "__main__":
-    try:
-        raise SystemExit(main())
-    except KeyboardInterrupt:
-        sys.exit(1)
-
-from pathlib import Path
-import json
-
-
-def _gm_print_training_summary_from_quality():
-    """
-    Print training summary after HRNet training, as described in ТЗ_1.0.
-    Uses models/current/quality.json.
-    """
-    root = Path(__file__).resolve().parent.parent
-    q_path = root / "models" / "current" / "quality.json"
-
-    if not q_path.exists():
-        print("[WARN] models/current/quality.json not found, cannot print training summary.")
-        return
-
-    try:
-        data = json.loads(q_path.read_text(encoding="utf-8"))
-    except Exception as exc:
-        print("[ERR] Cannot read models/current/quality.json:")
-        print(f"      {exc}")
-        return
-
-    run_id = data.get("run_id", "?")
-    n_train = int(data.get("n_train_images", 0) or 0)
-    n_val = int(data.get("n_val_images", 0) or 0)
-    train_share = float(data.get("train_share", 0.0) or 0.0)
-    val_share = float(data.get("val_share", 0.0) or 0.0)
-    pck_percent = int(data.get("pck_r_percent", 0) or 0)
-    n_loc = int(data.get("n_manual_localities", 0) or 0)
-
-    train_pct = int(round(train_share * 100.0)) if train_share > 0.0 else 0
-    val_pct = int(round(val_share * 100.0)) if val_share > 0.0 else 0
-
+    # Console output in strict format from ТЗ_1.0
     print()
     print("Training finished.")
     print()
-    print(f"Used MANUAL localities: {n_loc}")
-    print(f"Train images: {n_train} ({train_pct}%)")
-    print(f"Val images:   {n_val:4d} ({val_pct}%)")
+    print(f"Used MANUAL localities: {n_manual_localities}")
+    print(f"Train images: {n_train} ({int(round(train_share*100))}%)")
+    print(f"Val images:   {n_val}  ({int(round(val_share*100))}%)")
     print()
-    print(f"PCK@R (validation): {pck_percent} %")
+    print(f"PCK@R (validation): {pck_r_percent} %")
     print()
     print("Model saved as: models/current/hrnet_best.pth")
     print(f"Run id: {run_id}")
 
+    log_line("=== HRNet training finished ===")
 
-if __name__ == "__main__":
-    try:
-        _gm_print_training_summary_from_quality()
-    except Exception as exc:
-        print("[WARN] Failed to print training summary:")
-        print(f"       {exc}")
+
+if __name__ == "__main__":  # pragma: no cover
+    main()
