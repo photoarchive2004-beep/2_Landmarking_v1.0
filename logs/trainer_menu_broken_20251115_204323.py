@@ -597,155 +597,103 @@ def load_or_create_config(landmark_root: Path) -> Dict[str, Any]:
     return cfg
 
 
+def show_model_settings(landmark_root: Path) -> None:
     from pathlib import Path
     import yaml
 
-    # Show current HRNet config with simple English explanations.
-    def show_model_settings():
-        root = Path(__file__).resolve().parent.parent
-        cfg_path = root / "config" / "hrnet_config.yaml"
+    root = Path(__file__).resolve().parent.parent
+    cfg_path = root / "config" / "hrnet_config.yaml"
 
-        try:
-            with cfg_path.open("r", encoding="utf-8") as f:
-                cfg = yaml.safe_load(f) or {}
-        except FileNotFoundError:
-            print("Config file 'config/hrnet_config.yaml' not found.")
-            print("It will be created automatically when you run the trainer.")
-            return
-        except Exception as exc:
-            print("Error reading config/hrnet_config.yaml:")
-            print(f"  {exc}")
-            return
-
-        def get_value(name, default):
-            return cfg.get(name, default)
-
-        print("=== Model settings (config/hrnet_config.yaml) ===")
-        print()
-
-        print(f"model_type = {get_value('model_type', 'hrnet_w32')!r}")
-        print("  - HRNet backbone type. 'hrnet_w32' is a good default.")
-        print()
-
-        print(f"input_size = {get_value('input_size', 1024)}")
-        print("  - Target size for the LONG side of the image in pixels.")
-        print("    The image is resized keeping aspect ratio (no stretching).")
-        print()
-
-        print(f"resize_mode = {get_value('resize_mode', 'resize')!r}")
-        print("  - 'resize': rescale images to match input_size.")
-        print("  - 'original': keep original resolution (only safe downscale/padding if needed).")
-        print()
-
-        print(f"keep_aspect_ratio = {bool(get_value('keep_aspect_ratio', True))}")
-        print("  - If True: keep aspect ratio, no stretching by one axis.")
-        print()
-
-        print(f"batch_size = {get_value('batch_size', 2)}")
-        print("  - How many images are processed in one training batch.")
-        print("    Larger batch uses more GPU memory.")
-        print()
-
-        print(f"learning_rate = {get_value('learning_rate', 0.0005)}")
-        print("  - Main learning rate for the optimizer.")
-        print()
-
-        print(f"max_epochs = {get_value('max_epochs', 150)}")
-        print("  - Maximum number of training epochs.")
-        print("    One epoch = one full pass through the training dataset.")
-        print()
-
-        print(f"train_val_split = {get_value('train_val_split', 0.9)}")
-        print("  - Fraction of data used for training.")
-        print("    The rest is used for validation (quality check).")
-        print()
-
-        print(f"flip_augmentation = {bool(get_value('flip_augmentation', True))}")
-        print("  - If True: random horizontal flips during training.")
-        print()
-
-        print(f"rotation_augmentation_deg = {get_value('rotation_augmentation_deg', 15)}")
-        print("  - Maximum random rotation angle in degrees.")
-        print()
-
-        print(f"scale_augmentation = {get_value('scale_augmentation', 0.3)}")
-        print("  - Random zoom in / zoom out factor.")
-        print()
-
-        print(f"weight_decay = {get_value('weight_decay', 0.0001)}")
-        print("  - L2 regularization strength (helps prevent overfitting).")
-        print()
-
-        crop_x = float(get_value('crop_margin_x_percent', 0.15))
-        crop_y = float(get_value('crop_margin_y_percent', 0.5))
-
-        print(f"crop_margin_x_percent = {crop_x}")
-        print("  - Extra margin to the LEFT and RIGHT of the landmarks bounding box.")
-        print("    Value is a fraction of bbox width for each side.")
-        print("    Example: 0.15 = +15% left and +15% right.")
-        print()
-
-        print(f"crop_margin_y_percent = {crop_y}")
-        print("  - Extra margin ABOVE and BELOW the landmarks bounding box.")
-        print("    Value is a fraction of bbox height for each side.")
-        print("    Example: 0.50 = +50% above and +50% below.")
-        print()
-
-        print("To change these values:")
-        print('  1) Open file \"config/hrnet_config.yaml\" in a text editor (for example Notepad).')
-        print("  2) Change numbers or true/false values.")
-        print("  3) Save the file. New training runs will automatically use the new settings.")
-        print("  Do not change parameter NAMES, only their VALUES.")
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--root", dest="root", default=None)
-    parser.add_argument("--base", dest="base", default=None)
-    parser.add_argument("--base-localities", dest="base_localities", default=None)
-    args = parser.parse_args()
-
-    landmark_root = get_landmark_root(args.root)
-
-    base_localities: Optional[Path] = None
-    base_arg = args.base_localities or args.base
-    if base_arg:
-        base_localities = Path(base_arg)
-
-    localities = load_localities(landmark_root)
-
-    print("=== GM Landmarking: HRNet Trainer (v1.0) ===")
-    print()
-    print("1) Train / Finetune model on MANUAL localities")
-    print("2) Autolabel locality with current model")
-    print("3) Review AUTO locality in annotator (set MANUAL by button)")
-    print("4) Info about current model / metrics")
-    print("5) Model settings")
-    print()
-    print("0) Quit")
-    print()
-
-    choice = input("Select action: ").strip()
-
-    # После выбора действия показываем список локальностей (для информации)
-    print_localities_block(localities)
-
-    if choice == "1":
-        run_training(landmark_root)
-        print()
-        input("Press Enter to exit...")
-    elif choice == "2":
-        run_autolabel(landmark_root, base_localities)
-    elif choice == "3":
-        run_review_auto(landmark_root)
-    elif choice == "4":
-        show_model_info(landmark_root)
-    elif choice == "5":
-        show_model_settings(landmark_root)
-    else:
-        # 0 или что-то другое – просто выходим
+    try:
+        with cfg_path.open("r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        print("Config file 'config/hrnet_config.yaml' not found.")
+        print("It will be created automatically when you run the trainer.")
+        return
+    except Exception as exc:
+        print("Error reading config/hrnet_config.yaml:")
+        print(f"  {exc}")
         return
 
+    def get_value(name, default):
+        return cfg.get(name, default)
 
-if __name__ == "__main__":
-    main()
+    print("=== Model settings (config/hrnet_config.yaml) ===")
+    print()
+
+    print(f"model_type = {get_value('model_type', 'hrnet_w32')!r}")
+    print("  - HRNet backbone type. 'hrnet_w32' is a good default.")
+    print()
+
+    print(f"input_size = {get_value('input_size', 1024)}")
+    print("  - Target size for the LONG side of the image in pixels.")
+    print("    The image is resized keeping aspect ratio (no stretching).")
+    print()
+
+    print(f"resize_mode = {get_value('resize_mode', 'resize')!r}")
+    print("  - 'resize': rescale images to match input_size.")
+    print("  - 'original': keep original resolution (only safe downscale/padding if needed).")
+    print()
+
+    print(f"keep_aspect_ratio = {bool(get_value('keep_aspect_ratio', True))}")
+    print("  - If True: keep aspect ratio, no stretching by one axis.")
+    print()
+
+    print(f"batch_size = {get_value('batch_size', 2)}")
+    print("  - How many images are processed in one training batch.")
+    print("    Larger batch uses more GPU memory.")
+    print()
+
+    print(f"learning_rate = {get_value('learning_rate', 0.0005)}")
+    print("  - Main learning rate for the optimizer.")
+    print()
+
+    print(f"max_epochs = {get_value('max_epochs', 150)}")
+    print("  - Maximum number of training epochs.")
+    print("    One epoch = one full pass through the training dataset.")
+    print()
+
+    print(f"train_val_split = {get_value('train_val_split', 0.9)}")
+    print("  - Fraction of data used for training.")
+    print("    The rest is used for validation (quality check).")
+    print()
+
+    print(f"flip_augmentation = {bool(get_value('flip_augmentation', True))}")
+    print("  - If True: random horizontal flips during training.")
+    print()
+
+    print(f"rotation_augmentation_deg = {get_value('rotation_augmentation_deg', 15)}")
+    print("  - Maximum random rotation angle in degrees.")
+    print()
+
+    print(f"scale_augmentation = {get_value('scale_augmentation', 0.3)}")
+    print("  - Random zoom in / zoom out factor.")
+    print()
+
+    print(f"weight_decay = {get_value('weight_decay', 0.0001)}")
+    print("  - L2 regularization strength (helps prevent overfitting).")
+    print()
+
+    crop_x = float(get_value('crop_margin_x_percent', 0.15))
+    crop_y = float(get_value('crop_margin_y_percent', 0.5))
+
+    print(f"crop_margin_x_percent = {crop_x}")
+    print("  - Extra margin to the LEFT and RIGHT of the landmarks bounding box.")
+    print("    Value is a fraction of bbox width for each side.")
+    print("    Example: 0.15 = +15% left and +15% right.")
+    print()
+
+    print(f"crop_margin_y_percent = {crop_y}")
+    print("  - Extra margin ABOVE and BELOW the landmarks bounding box.")
+    print("    Value is a fraction of bbox height for each side.")
+    print("    Example: 0.50 = +50% above and +50% below.")
+    print()
+
+    print("To change these values:")
+    print('  1) Open file "config/hrnet_config.yaml" in a text editor (for example Notepad).')
+    print("  2) Change numbers or true/false values.")
+    print("  3) Save the file. New training runs will automatically use the new settings.")
+    print("  Do not change parameter NAMES, only their VALUES.")
+
 
