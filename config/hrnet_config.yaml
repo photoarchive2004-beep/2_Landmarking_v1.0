@@ -1,4 +1,4 @@
-﻿model_type: hrnet_w32
+model_type: hrnet_w32
 input_size: 1024
 resize_mode: resize
 keep_aspect_ratio: true
@@ -10,25 +10,5 @@ flip_augmentation: true
 rotation_augmentation_deg: 15
 scale_augmentation: 0.3
 weight_decay: 0.0001
-
-# === Crop margins around landmarks for training ===
-# These settings control how much extra space we keep around the fish
-# when we crop the image by MANUAL landmarks during training.
-#
-# Values are fractions of the landmarks bounding box size (from 0.0 to 1.0 and above).
-# Example for crop_margin_x_percent:
-#   0.15 means:
-#     +15% of bbox width added on the LEFT
-#     and +15% of bbox width added on the RIGHT.
-#
-# Example for crop_margin_y_percent:
-#   0.50 means:
-#     +50% of bbox height added ABOVE
-#     and +50% of bbox height added BELOW.
-#
-# In simple words:
-#   - smaller values  -> tighter crop around the fish;
-#   - larger values   -> more background around the fish.
 crop_margin_x_percent: 0.15
 crop_margin_y_percent: 0.5
-

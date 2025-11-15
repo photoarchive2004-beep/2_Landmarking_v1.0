@@ -1443,3 +1443,6 @@
 [15:50:21] [SAVE] img_0171063.csv pts=17 OK
 [15:50:21] [LOAD] img_0181064.png pts=17/17 scale=False
 [15:50:24] [SAVE] img_0181064.csv pts=17 OK
+[19:00:51] [LOAD] img_0021048.png pts=0/17 scale=True
+[19:01:10] [LOAD] img_001415.png pts=17/17 scale=False
+[19:12:29] [SAVE] img_001415.csv pts=17 OK
