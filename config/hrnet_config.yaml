@@ -1,10 +1,10 @@
 ﻿model_type: "hrnet_w32"          # HRNet backbone type. W32 is a good default.
 
-input_size: 256                  # Target input size in pixels (0 = do not resize).
+input_size: 512                  # Target input size in pixels (0 = do not resize).
 resize_mode: "resize"            # "resize" or "original".
 keep_aspect_ratio: true          # Keep fish shape, no stretching.
 
-batch_size: 16                   # How many images per training step (tuned for RTX 3060 12 GB).
+batch_size: 4                    # ~тот же расход VRAM, что у 256x256 с batch_size=16 на RTX 3060 12 GB.
 learning_rate: 0.0005            # How fast the model learns.
 max_epochs: 100                  # Maximum number of passes through the training data.
 train_val_split: 0.9             # 0.9 = 90% train, 10% validation.

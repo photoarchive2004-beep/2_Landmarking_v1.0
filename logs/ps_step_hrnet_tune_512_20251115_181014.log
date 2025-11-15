@@ -1,0 +1,65 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115181014
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 18484
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_step_hrnet_tune_512_20251115_181014.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== GM Landmarking: настройка HRNet под большие исходники (input_size=512, batch_size=4) ==="
+=== GM Landmarking: настройка HRNet под большие исходники (input_size=512, batch_size=4) ===
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Меняем только config/hrnet_config.yaml, структуру меню и логику не трогаем."
+Меняем только config/hrnet_config.yaml, структуру меню и логику не трогаем.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 3. Обновляем config/hrnet_config.yaml строго по ТЗ, но с новыми значениями
+PS D:\GM\tools\2_Landmarking_v1.0> New-Item -ItemType Directory -Force -Path "config" | Out-Null
+PS D:\GM\tools\2_Landmarking_v1.0> $configPath = "config\hrnet_config.yaml"
+PS D:\GM\tools\2_Landmarking_v1.0> @'
+model_type: "hrnet_w32"          # HRNet backbone type. W32 is a good default.
+
+input_size: 512                  # Target input size in pixels (0 = do not resize).
+resize_mode: "resize"            # "resize" or "original".
+keep_aspect_ratio: true          # Keep fish shape, no stretching.
+
+batch_size: 4                    # ~тот же расход VRAM, что у 256x256 с batch_size=16 на RTX 3060 12 GB.
+learning_rate: 0.0005            # How fast the model learns.
+max_epochs: 100                  # Maximum number of passes through the training data.
+train_val_split: 0.9             # 0.9 = 90% train, 10% validation.
+
+flip_augmentation: true          # Random horizontal flip during training.
+rotation_augmentation_deg: 15    # Max random rotation in degrees.
+scale_augmentation: 0.3          # Random zoom in/out up to 30%.
+weight_decay: 0.0001             # Regularization to reduce overfitting.
+
+# To change these values:
+# 1) Edit this file "config/hrnet_config.yaml".
+# 2) Save the file.
+# New training runs will automatically use the new settings.
+# Do not change the parameter names, only their values.
+'@ | Set-Content -Path $configPath -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "config/hrnet_config.yaml обновлён."
+config/hrnet_config.yaml обновлён.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Следующие запуски обучения будут использовать input_size=512 и batch_size=4."
+Следующие запуски обучения будут использовать input_size=512 и batch_size=4.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 4. Завершаем протоколирование PowerShell
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115181014
+**********************
