@@ -1,15 +1,34 @@
-﻿model_type: "hrnet_w32"          # HRNet backbone type (W32 is standard in literature).
+﻿model_type: hrnet_w32
+input_size: 1024
+resize_mode: resize
+keep_aspect_ratio: true
+batch_size: 2
+learning_rate: 0.0005
+max_epochs: 150
+train_val_split: 0.9
+flip_augmentation: true
+rotation_augmentation_deg: 15
+scale_augmentation: 0.3
+weight_decay: 0.0001
 
-input_size: 1024                 # Target input size in pixels (0 = do not resize).
-resize_mode: "resize"            # Keep aspect ratio and pad to square.
-keep_aspect_ratio: true          # No stretching of the fish.
+# === Crop margins around landmarks for training ===
+# These settings control how much extra space we keep around the fish
+# when we crop the image by MANUAL landmarks during training.
+#
+# Values are fractions of the landmarks bounding box size (from 0.0 to 1.0 and above).
+# Example for crop_margin_x_percent:
+#   0.15 means:
+#     +15% of bbox width added on the LEFT
+#     and +15% of bbox width added on the RIGHT.
+#
+# Example for crop_margin_y_percent:
+#   0.50 means:
+#     +50% of bbox height added ABOVE
+#     and +50% of bbox height added BELOW.
+#
+# In simple words:
+#   - smaller values  -> tighter crop around the fish;
+#   - larger values   -> more background around the fish.
+crop_margin_x_percent: 0.15
+crop_margin_y_percent: 0.5
 
-batch_size: 2                    # Tuned for RTX 3060 12 GB with 1024x1024 input.
-learning_rate: 0.0005            # Typical LR for HRNet landmark training.
-max_epochs: 150                  # Up to 150 epochs (можно останавливать вручную раньше).
-train_val_split: 0.9             # 90% train, 10% validation (как в ТЗ).
-
-flip_augmentation: true          # Random horizontal flip during training.
-rotation_augmentation_deg: 15    # Mild rotations (preserved fish on tray).
-scale_augmentation: 0.3          # Random zoom in/out up to 30%.
-weight_decay: 0.0001             # Regularization, стандартное значение для HRNet.
