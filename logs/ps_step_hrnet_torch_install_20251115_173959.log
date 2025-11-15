@@ -1,0 +1,86 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115173959
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 26524
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_step_hrnet_torch_install_20251115_173959.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== GM Landmarking: установка PyTorch для HRNet ==="
+=== GM Landmarking: установка PyTorch для HRNet ===
+PS D:\GM\tools\2_Landmarking_v1.0> # 4. Выбираем Python, согласованный с модулем
+PS D:\GM\tools\2_Landmarking_v1.0> $py = $null
+PS D:\GM\tools\2_Landmarking_v1.0> if (Test-Path ".\.venv_lm\Scripts\python.exe") {
+    $py = ".\.venv_lm\Scripts\python.exe"
+} elseif (Test-Path ".\.venv_gm\Scripts\python.exe") {
+    $py = ".\.venv_gm\Scripts\python.exe"
+} elseif (Test-Path ".\.venv\Scripts\python.exe") {
+    $py = ".\.venv\Scripts\python.exe"
+} else {
+    $py = "python"
+}
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Будет использован Python: $py"
+Будет использован Python: .\.venv_lm\Scripts\python.exe
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> $ErrorActionPreference = "Stop"
+PS D:\GM\tools\2_Landmarking_v1.0> try {
+    Write-Host "== Шаг 1. Проверка pip =="
+    & $py -m pip --version
+
+    Write-Host ""
+    Write-Host "== Шаг 2. Установка/обновление PyTorch =="
+    Write-Host "Сначала пробуем GPU-версию (CUDA). Если будет ошибка, поставим CPU-версию."
+
+    try {
+        # Попытка поставить версию с поддержкой CUDA (GPU)
+        & $py -m pip install --upgrade torch torchvision torchaudio `
+            --index-url https://download.pytorch.org/whl/cu121
+    } catch {
+        Write-Host "Не получилось поставить GPU-версию, пробуем обычную CPU-версию..."
+        & $py -m pip install --upgrade torch torchvision torchaudio
+    }
+
+    Write-Host ""
+    Write-Host "== Шаг 3. Быстрая проверка, что torch импортируется =="
+    $testCode = @'
+import torch
+
+print("torch version:", torch.__version__)
+print("cuda available:", torch.cuda.is_available())
+print("device:", "cuda" if torch.cuda.is_available() else "cpu")
+'@
+    & $py -c $testCode
+
+} catch {
+    Write-Host ""
+    Write-Host "=== ОШИБКА при установке PyTorch ==="
+    Write-Host $_
+} finally {
+    # 5. Останавливаем протоколирование PowerShell
+    Stop-Transcript
+}
+== Шаг 1. Проверка pip ==
+
+
+== Шаг 2. Установка/обновление PyTorch ==
+Сначала пробуем GPU-версию (CUDA). Если будет ошибка, поставим CPU-версию.
+
+
+== Шаг 3. Быстрая проверка, что torch импортируется ==
+
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115174102
+**********************
