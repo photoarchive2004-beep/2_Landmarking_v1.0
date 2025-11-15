@@ -1,0 +1,64 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115131954
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 23540
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\sync_20251115_131954.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 3) Путь к Python в виртуальном окружении ландмаркинга
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm не найден. Сначала нужно запустить 0_INSTALL_ENV.ps1" -ForegroundColor Red
+}
+PS D:\GM\tools\2_Landmarking_v1.0> else {
+    Write-Host "[INFO] Проверяю PyTorch в .venv_lm ..." -ForegroundColor Cyan
+
+    # 4) Проверяем, установлен ли torch и видит ли он CUDA
+    & $py -c "import torch; print('torch version:', torch.__version__); print('cuda available:', torch.cuda.is_available()); print('cuda device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU only')"
+}
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правиль
+ность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+else : Имя "else" не распознано как имя командлета, функции, файла сценария или выполняемой программы. Проверьте правил
+ьность написания имени, а также наличие и правильность пути, после чего повторите попытку.
+строка:1 знак:1
++ else {
++ ~~~~
+    + CategoryInfo          : ObjectNotFound: (else:String) [], CommandNotFoundException
+    + FullyQualifiedErrorId : CommandNotFoundException
+
+PS D:\GM\tools\2_Landmarking_v1.0> # 5) Показываем, где лежит лог
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Лог команды записан в: $logPath" -ForegroundColor Yellow
+Лог команды записан в: logs\sync_20251115_131954.log
+PS D:\GM\tools\2_Landmarking_v1.0> # 6) Синхронизация с GitHub (логи можно тоже коммитить, как и раньше)
+PS D:\GM\tools\2_Landmarking_v1.0> git add "logs"
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Check PyTorch/CUDA in .venv_lm before real HRNet training" 2>$null
+
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115131957
+**********************

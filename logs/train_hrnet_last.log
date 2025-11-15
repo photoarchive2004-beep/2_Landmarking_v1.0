@@ -1,0 +1,60 @@
+[2025-11-15T13:52:16] === HRNet training started (action 1: MANUAL localities) ===
+[2025-11-15T13:52:16] ERROR: PyYAML is not installed. Please install 'pyyaml' in the landmarking environment.
+[2025-11-15T13:56:55] === HRNet training started (action 1: MANUAL localities) ===
+[2025-11-15T13:56:55] Base localities folder: G:\Research\Morphology\Photos\Phoxinus
+[2025-11-15T13:56:55] Locality 'balkh-alakol_Ayagoz_KZ_25': 19 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'balkh-alakol_Karakol_KZ_25': 13 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'balkh-alakol_Lepsy_KZ_25': 11 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'baltsea-east_isetensis-Ryadan-Chern-Dymka_RU_25': 7 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'baltsea-east_isetensis-Sitnya_RU_25': 19 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Belokurikha_RU_25': 11 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Bol_Terekta_RU_25': 15 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Chaganka_RU_25': 29 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Kamenka_RU_25': 11 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Kubardu_RU_25': 11 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'ob-altay_Nizh-Kalmanka_RU_25': 7 labeled images used for training.
+[2025-11-15T13:56:55] Locality 'turk-west_abanticus-Abant_TR_25': 10 labeled images used for training.
+[2025-11-15T13:56:55] Dataset saved: hrnet_train_20251115_135655.txt (147 images), hrnet_val_20251115_135655.txt (16 images).
+[2025-11-15T13:56:55] Total labeled images: 163
+[2025-11-15T13:56:55] Train images: 147 (90.2%)
+[2025-11-15T13:56:55] Val images: 16 (9.8%)
+[2025-11-15T13:56:55] === HRNet training finished ===
+[2025-11-15T14:40:35] === HRNet training started (action 1: MANUAL localities) ===
+[2025-11-15T14:40:35] Base localities folder: G:\Research\Morphology\Photos\Phoxinus
+[2025-11-15T14:40:35] Locality 'balkh-alakol_Ayagoz_KZ_25': 19 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'balkh-alakol_Karakol_KZ_25': 13 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'balkh-alakol_Lepsy_KZ_25': 11 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'baltsea-east_isetensis-Ryadan-Chern-Dymka_RU_25': 7 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'baltsea-east_isetensis-Sitnya_RU_25': 19 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Belokurikha_RU_25': 11 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Bol_Terekta_RU_25': 15 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Chaganka_RU_25': 29 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Kamenka_RU_25': 11 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Kubardu_RU_25': 11 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'ob-altay_Nizh-Kalmanka_RU_25': 7 labeled images used for training.
+[2025-11-15T14:40:35] Locality 'turk-west_abanticus-Abant_TR_25': 10 labeled images used for training.
+[2025-11-15T14:40:35] Dataset saved: hrnet_train_20251115_144035.txt (147 images), hrnet_val_20251115_144035.txt (16 images).
+[2025-11-15T14:40:35] Total labeled images: 163
+[2025-11-15T14:40:35] Train images: 147 (90.2%)
+[2025-11-15T14:40:35] Val images: 16 (9.8%)
+[2025-11-15T14:40:35] === HRNet training finished ===
+[2025-11-15T15:05:13] === HRNet training started (action 1: MANUAL localities) ===
+[2025-11-15T15:05:13] Base localities folder: G:\Research\Morphology\Photos\Phoxinus
+[2025-11-15T15:05:13] Locality 'balkh-alakol_Ayagoz_KZ_25': 19 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'balkh-alakol_Karakol_KZ_25': 13 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'balkh-alakol_Lepsy_KZ_25': 11 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'baltsea-east_isetensis-Ryadan-Chern-Dymka_RU_25': 7 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'baltsea-east_isetensis-Sitnya_RU_25': 19 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Belokurikha_RU_25': 11 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Bol_Terekta_RU_25': 15 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Chaganka_RU_25': 29 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Kamenka_RU_25': 11 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Kubardu_RU_25': 11 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Nizh-Kalmanka_RU_25': 7 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'ob-altay_Ursul_RU_25': 7 labeled images used for training.
+[2025-11-15T15:05:13] Locality 'turk-west_abanticus-Abant_TR_25': 10 labeled images used for training.
+[2025-11-15T15:05:13] Dataset saved: hrnet_train_20251115_150513.txt (153 images), hrnet_val_20251115_150513.txt (17 images).
+[2025-11-15T15:05:13] Total labeled images: 170
+[2025-11-15T15:05:13] Train images: 153 (90.0%)
+[2025-11-15T15:05:13] Val images: 17 (10.0%)
+[2025-11-15T15:05:13] === HRNet training finished ===

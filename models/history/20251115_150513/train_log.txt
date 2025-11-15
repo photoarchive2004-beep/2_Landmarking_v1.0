@@ -1,0 +1,10 @@
+HRNet training run (placeholder implementation)
+Run id: 20251115_150513
+Model type: hrnet_w32
+Train images: 153
+Val images: 17
+Train share: 0.900
+Val share: 0.100
+MANUAL localities used: 13
+
+NOTE: This is a placeholder. Real HRNet training is not implemented yet.

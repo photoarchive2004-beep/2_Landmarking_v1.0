@@ -6,5 +6,6 @@
   "n_val_images": 17,
   "train_share": 0.9,
   "val_share": 0.1,
-  "n_manual_localities": 13
+  "n_manual_localities": 13,
+  "model_type": "hrnet_w32"
 }

@@ -1,0 +1,24 @@
+model:
+  name: hrnet_w32
+  num_keypoints: 20
+train:
+  batch_size: 8
+  epochs: 50
+  learning_rate: 0.001
+data:
+  resize_mode: longest_side
+  input_size:
+  - 512
+  - 512
+model_type: hrnet_w32
+input_size: 256
+resize_mode: resize
+keep_aspect_ratio: true
+batch_size: 8
+learning_rate: 0.0005
+max_epochs: 100
+train_val_split: 0.9
+flip_augmentation: true
+rotation_augmentation_deg: 15
+scale_augmentation: 0.3
+weight_decay: 0.0001

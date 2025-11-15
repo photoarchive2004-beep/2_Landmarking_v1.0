@@ -1,6 +1,6 @@
 locality,status,auto_quality,last_model_run,last_update,n_images,n_labeled
-arctic-eur_isetensis-Kipshenga_RU_25,,,,2025-11-14 21:25:15,18,0
-arctic-eur_isetensis-Likhtosh-2_RU_25,,,,2025-11-14 21:25:15,22,0
+arctic-eur_isetensis-Kipshenga_RU_25,MANUAL,,20251115_144035,2025-11-15T15:08:24,16,16
+arctic-eur_isetensis-Likhtosh-2_RU_25,AUTO,0,20251115_150513,2025-11-15T15:06:29,22,22
 balkh-alakol_Ayagoz_KZ_25,MANUAL,,,2025-11-14 18:12:09,19,19
 balkh-alakol_Karakol_KZ_25,MANUAL,,,2025-11-14 18:12:09,13,13
 balkh-alakol_Lepsy_KZ_25,MANUAL,,,2025-11-14 18:12:09,11,11
@@ -21,7 +21,7 @@ ob-altay_Kubardu_RU_25,MANUAL,,,2025-11-14 18:12:09,11,11
 ob-altay_Nizh-Kalmanka_RU_25,MANUAL,,,2025-11-14 18:12:09,7,7
 ob-altay_Shipunikha_RU_25,,,,2025-11-14 18:12:09,13,0
 ob-altay_Talovka_RU_25,,,,2025-11-14 18:12:09,13,0
-ob-altay_Ursul_RU_25,,,,2025-11-14 18:12:09,8,0
+ob-altay_Ursul_RU_25,MANUAL,,,2025-11-14 18:12:09,7,7
 ob-altay_Usay_RU_25,,,,2025-11-14 18:12:09,55,0
 ob-irtysh_Abylaikit_KZ_25,,,,2025-11-14 18:12:09,20,0
 ob-irtysh_Bol-Kamenka_RU_25,,,,2025-11-14 18:12:09,27,0

@@ -1,0 +1,136 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115144006
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 19136
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Шаг 1. Исправляем get_landmark_root в scripts\trainer_menu.py =="
+== Шаг 1. Исправляем get_landmark_root в scripts\trainer_menu.py ==
+PS D:\GM\tools\2_Landmarking_v1.0> $trainerPath = "scripts\trainer_menu.py"
+PS D:\GM\tools\2_Landmarking_v1.0> # читаем файл как текст (UTF-8)
+PS D:\GM\tools\2_Landmarking_v1.0> $code = Get-Content $trainerPath -Raw -Encoding UTF8
+PS D:\GM\tools\2_Landmarking_v1.0> # Ищем и заменяем целую функцию get_landmark_root на вариант строго по ТЗ:
+PS D:\GM\tools\2_Landmarking_v1.0> # корень = папка 2_Landmarking_v1.0 (два уровня выше scripts), аргумент --root игнорируем
+PS D:\GM\tools\2_Landmarking_v1.0> $pattern = 'def get_landmark_root\([^)]*\):[\s\S]+?return Path\(__file__\)\.resolve\(\)\.parent\.parent'
+PS D:\GM\tools\2_Landmarking_v1.0> $newFunc = @'
+def get_landmark_root(arg_root: Optional[str]) -> Path:
+    """Возвращаем корень модуля ландмаркинга (папка 2_Landmarking_v1.0)."""
+    # Всегда берём папку на два уровня выше scripts/, как описано в ТЗ.
+    # Внешний аргумент --root игнорируем, чтобы пути не уезжали.
+    return Path(__file__).resolve().parent.parent
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> $code2 = [regex]::Replace($code, $pattern, $newFunc)
+PS D:\GM\tools\2_Landmarking_v1.0> if ($code2 -eq $code) {
+    Write-Host "[WARN] Не удалось найти функцию get_landmark_root для замены. Проверь позже diff в GitHub."
+} else {
+    Set-Content $trainerPath -Value $code2 -Encoding UTF8
+    Write-Host "[OK] Функция get_landmark_root переписана: корень теперь берётся строго от расположения скрипта."
+}
+[WARN] Не удалось найти функцию get_landmark_root для замены. Проверь позже diff в GitHub.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Шаг 2. Полностью переписываем 2_TRAIN-INFER_HRNet.bat без BOM и без абсолютных путей =="
+== Шаг 2. Полностью переписываем 2_TRAIN-INFER_HRNet.bat без BOM и без абсолютных путей ==
+PS D:\GM\tools\2_Landmarking_v1.0> $batPath = "2_TRAIN-INFER_HRNet.bat"
+PS D:\GM\tools\2_Landmarking_v1.0> $batText = @'
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+chcp 65001 >nul
+
+rem ---- Paths ----
+set "TOOL_DIR=%~dp0"
+pushd "%TOOL_DIR%" >nul
+
+set "LOG_DIR=%TOOL_DIR%logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
+
+rem ---- Localities base picker (Windows dialog) ----
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TOOL_DIR%scripts\choose_localities.ps1" -Silent
+if errorlevel 1 (
+    echo [WARN] Localities base picker failed or was cancelled.>>"%LOG_DIR%\trainer_last.log"
+    echo [WARN] Localities base picker failed or was cancelled.
+)
+
+rem ---- Resolve PHOTOS_DIR from cfg\last_base.txt, if present ----
+set "CFG_DIR=%TOOL_DIR%cfg"
+set "LAST_BASE=%CFG_DIR%\last_base.txt"
+set "PHOTOS_DIR="
+if exist "%LAST_BASE%" (
+    set /p PHOTOS_DIR=<"%LAST_BASE%"
+)
+if not defined PHOTOS_DIR (
+    echo [ERR] Localities base path not found in cfg\last_base.txt.>>"%LOG_DIR%\trainer_last.log"
+    echo [ERR] Localities base path not found in cfg\last_base.txt.
+    pause
+    popd
+    exit /b 1
+)
+
+rem ---- Python resolver ----
+set "PY=%TOOL_DIR%.venv_lm\Scripts\python.exe"
+if not exist "%PY%" (
+    where py >nul 2>&1 && (set "PY=py -3")
+)
+if /I "%PY%"=="py -3" (
+    py -3 -c "import sys" >nul 2>&1 || set "PY="
+)
+if not defined PY (
+    where python >nul 2>&1 && (set "PY=python")
+)
+if not defined PY (
+    echo [ERR] Landmarking environment not found.>>"%LOG_DIR%\trainer_last.log"
+    echo [ERR] Landmarking environment not found.
+    echo Run 0_INSTALL_ENV.ps1.
+    pause
+    popd
+    exit /b 1
+)
+
+title == GM Landmarking: HRNet Trainer v1.0 ==
+echo == GM Landmarking: HRNet Trainer v1.0 ==
+
+rem ---- Initialization: structure + localities status ----
+%PY% "%TOOL_DIR%scripts\init_structure.py" 1>>"%LOG_DIR%\init_trainer_last.log" 2>&1
+%PY% "%TOOL_DIR%scripts\rebuild_localities_status.py" 1>>"%LOG_DIR%\status_trainer_last.log" 2>&1
+
+rem ---- Launch trainer menu (Python) ----
+%PY% "%TOOL_DIR%scripts\trainer_menu.py"
+set "RC=%ERRORLEVEL%"
+if not "%RC%"=="0" (
+    echo [ERR] Trainer menu exited with code %RC%.>>"%LOG_DIR%\trainer_last.log"
+    echo [ERR] Trainer menu exited with code %RC%.
+    pause
+)
+
+popd
+endlocal
+exit /b 0
+'@
+PS D:\GM\tools\2_Landmarking_v1.0> # Записываем батник в ASCII без BOM, чтобы не было "я╗┐@echo"
+PS D:\GM\tools\2_Landmarking_v1.0> Set-Content $batPath -Value $batText -Encoding ASCII
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "[OK] 2_TRAIN-INFER_HRNet.bat переписан: без BOM, без абсолютных путей, строго по ТЗ."
+[OK] 2_TRAIN-INFER_HRNet.bat переписан: без BOM, без абсолютных путей, строго по ТЗ.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "== Шаг 3. git add / commit / push =="
+== Шаг 3. git add / commit / push ==
+PS D:\GM\tools\2_Landmarking_v1.0> git add $trainerPath $batPath
+
+PS D:\GM\tools\2_Landmarking_v1.0> git commit -m "Fix trainer root path and 2_TRAIN-INFER_HRNet.bat paths (per ТЗ_1.0)" | Out-Null
+PS D:\GM\tools\2_Landmarking_v1.0> git push origin main
+
+PS D:\GM\tools\2_Landmarking_v1.0> git ls-remote --heads origin
+
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript | Out-Null
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115144010
+**********************
