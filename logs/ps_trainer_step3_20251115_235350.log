@@ -1,0 +1,42 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251115235350
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 28660
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_trainer_step3_20251115_235350.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Step 3: install PyYAML into .venv_lm for hrnet_config.yaml ==="
+=== Step 3: install PyYAML into .venv_lm for hrnet_config.yaml ===
+PS D:\GM\tools\2_Landmarking_v1.0> # --- Находим Python из .venv_lm ---
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm\Scripts\python.exe not found. Cannot install PyYAML."
+} else {
+    Write-Host "[INFO] Using Python: $py"
+    # Обновим pip (на всякий случай)
+    & $py -m pip install --upgrade pip
+    # Ставим PyYAML
+    & $py -m pip install pyyaml
+}
+[INFO] Using Python: .\.venv_lm\Scripts\python.exe
+
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Step 3 finished ==="
+=== Step 3 finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251115235352
+**********************
