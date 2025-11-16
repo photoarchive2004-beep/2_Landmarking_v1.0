@@ -23,3 +23,4 @@
 [2025-11-16 15:58:34] Patch mmpose.models.heads.__init__ to disable hybrid_heads import (avoid mmdet dependency, keep HRNet-W32 only).
 [2025-11-16 16:07:35] Patch mmcv.utils.ext_loader.load_ext with GM stub (avoid mmcv._ext error; keep HRNet-W32 from MMPose for GM).
 [2025-11-16 16:13:00] Fix mmcv.utils.ext_loader return line (remove stray '\\n') and run HRNet quick import check.
+[2025-11-16 16:34:04] Rewrite mmcv.utils.ext_loader with clean GM stub and run HRNet quick import check.

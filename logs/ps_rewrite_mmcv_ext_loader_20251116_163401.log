@@ -1,0 +1,138 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116163401
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 28996
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_rewrite_mmcv_ext_loader_20251116_163401.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Rewrite mmcv.utils.ext_loader with clean GM stub ==="
+=== Rewrite mmcv.utils.ext_loader with clean GM stub ===
+PS D:\GM\tools\2_Landmarking_v1.0> # Путь к ext_loader.py внутри .venv_lm
+PS D:\GM\tools\2_Landmarking_v1.0> $extPath = ".\.venv_lm\Lib\site-packages\mmcv\utils\ext_loader.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $extPath)) {
+    Write-Host "[ERR] ext_loader.py not found at $extPath"
+} else {
+    Write-Host "[INFO] ext_loader.py:" (Resolve-Path $extPath)
+
+    # --- 2. ПОЛНОСТЬЮ ПЕРЕПИСЫВАЕМ ext_loader.py ЧИСТОЙ ЗАГЛУШКОЙ ---
+    $stub = @'
+"""[GM] Simplified mmcv.utils.ext_loader for GM HRNet-only pipeline.
+
+Мы убираем жёсткую зависимость от скомпилированного mmcv._ext.
+Для нашей задачи (HRNet-W32 из MMPose для ландмарок рыб) низкоуровневые
+CUDA/C++-опы mmcv не нужны, главное — чтобы MMPose/HRNet нормально импортировались.
+"""
+
+import importlib
+import types
+import warnings
+
+_ext_module = None
+
+
+def load_ext(name, funcs=None):
+    """Load mmcv.<name> extension or provide a dummy module if unavailable.
+
+    В обычном MMCV здесь грузится mmcv._ext (C/CUDA-расширение).
+    В нашей сборке его нет, поэтому при ошибке возвращаем "пустой" модуль
+    и отключаем низкоуровневые операции.
+    """
+    global _ext_module
+    try:
+        ext = importlib.import_module("mmcv." + name)
+        _ext_module = ext
+        return ext
+    except Exception as e:  # pragma: no cover
+        warnings.warn(
+            "[GM] mmcv._ext not available (%r); using dummy ext module. "
+            "Low-level CUDA/C++ ops will be disabled." % (e,)
+        )
+        dummy = types.SimpleNamespace()
+        if funcs:
+            for fn_name in funcs:
+                def _make_dummy(n):
+                    def _fn(*args, **kwargs):
+                        raise NotImplementedError(
+                            "mmcv._ext op '%s' is disabled in GM stub ext_loader" % n
+                        )
+                    return _fn
+                setattr(dummy, fn_name, _make_dummy(fn_name))
+        _ext_module = dummy
+        return dummy
+
+
+def get_ext_module(name=None):
+    """Return last loaded ext module (real or dummy)."""
+    return _ext_module
+
+
+def is_ext_loaded():
+    """Whether any ext module (real or dummy) has been loaded."""
+    return _ext_module is not None
+
+
+def check_ops_exist():
+    """Return False: GM pipeline does not require compiled mmcv ops.
+
+    В стандартном MMCV эта функция проверяет наличие скомпилированных опов.
+    Нам они не нужны, поэтому всегда возвращаем False.
+    """
+    return False
+'@
+
+    $stub | Set-Content $extPath -Encoding UTF8
+    Write-Host "[INFO] ext_loader.py was fully rewritten with GM stub."
+
+    # --- 3. Быстрая проверка: импорт HRNet из MMPose ---
+    $py = ".\.venv_lm\Scripts\python.exe"
+    if (!(Test-Path $py)) {
+        if (Get-Command py -ErrorAction SilentlyContinue) {
+            $py = "py -3"
+        } else {
+            $py = "python"
+        }
+    }
+
+    Write-Host "`n[INFO] Quick check: import HRNet from MMPose ..."
+    $checkScript = @'
+print("=== HRNet quick check AFTER clean ext_loader stub ===")
+import numpy
+print("numpy:", numpy.__version__)
+try:
+    from mmpose.models.backbones import HRNet as MMPoseHRNet
+    print("OK: MMPoseHRNet imported:", MMPoseHRNet)
+except Exception as e:
+    import traceback
+    print("IMPORT_ERROR:", repr(e))
+    traceback.print_exc()
+'@
+    $checkPath = "scripts\\_check_hrnet_quick.py"
+    $checkScript | Set-Content $checkPath -Encoding UTF8
+    & $py $checkPath
+    Write-Host "[INFO] HRNet quick check finished."
+}
+[INFO] ext_loader.py: D:\GM\tools\2_Landmarking_v1.0\.venv_lm\Lib\site-packages\mmcv\utils\ext_loader.py
+[INFO] ext_loader.py was fully rewritten with GM stub.
+
+[INFO] Quick check: import HRNet from MMPose ...
+
+[INFO] HRNet quick check finished.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Rewrite step finished ==="
+=== Rewrite step finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116163404
+**********************

@@ -1,4 +1,4 @@
-﻿print("=== HRNet quick check ===")
+﻿print("=== HRNet quick check AFTER clean ext_loader stub ===")
 import numpy
 print("numpy:", numpy.__version__)
 try:
