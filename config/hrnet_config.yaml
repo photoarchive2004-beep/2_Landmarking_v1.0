@@ -1,25 +1,19 @@
-﻿# HRNet config for GM 2_Landmarking_v1.0 (ТЗ-V2)
-# ВАЖНО: num_keypoints читается из LM_number.txt в корне модуля.
+﻿model_type: "hrnet_w32"
 
-resize_long_side: 1280        # длинная сторона после ресайза
-model_type: "hrnet_w32"
+# Максимальный размер длинной стороны (изображение вписывается в квадрат 1024x1024
+# без изменения пропорций рыбы; могут появиться чёрные поля по краям).
+input_size: 1024
+resize_mode: "resize"
+keep_aspect_ratio: true
 
-train_val_split: 0.9
-max_epochs: 100
-batch_size: 8
+batch_size: 2
 learning_rate: 0.0005
+max_epochs: 100
+train_val_split: 0.9
+
+# ВАЖНО: рыба всегда в одной позе, флип выключен.
+flip_augmentation: false
+
+rotation_augmentation_deg: 15
+scale_augmentation: 0.3
 weight_decay: 0.0001
-heatmap_sigma_px: 2.5
-
-augmentation:
-  rotation_deg: 15      # максимум ±15°
-  rotation_prob: 0.5
-  scale_min: 0.8        # масштаб по длинной стороне
-  scale_max: 1.25
-  scale_prob: 0.5
-  brightness: 0.1       # ±10% яркости
-  contrast: 0.1         # ±10% контраста
-  color_prob: 0.5
-
-infer:
-  use_flip_tta: false   # flip-TTA не используется и не реализуется

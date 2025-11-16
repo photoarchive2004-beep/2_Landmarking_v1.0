@@ -625,7 +625,7 @@ def show_model_settings(landmark_root):
 
     show_one("input_size", 1280, [
         "Target size for the LONG side of the image in pixels.",
-        "The image is resized keeping aspect ratio (no stretching, no black borders)."
+        "The image is resized keeping aspect ratio.",
     ])
 
     show_one("resize_mode", "resize", [
@@ -672,7 +672,6 @@ def show_model_settings(landmark_root):
         "Regularization to reduce overfitting."
     ])
 
-    # === New crop margins around landmarks ===
     show_one("crop_margin_x_percent", 0.15, [
         "Extra space LEFT and RIGHT of the landmarks bounding box.",
         "Value is a fraction of bbox width for EACH side.",
@@ -691,6 +690,8 @@ def show_model_settings(landmark_root):
     print("  3) Save the file.")
     print("New training runs will automatically use the new settings.")
     print("Do not change parameter names, only their values.")
+    print()
+    input("Press Enter to exit...")
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -743,3 +744,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
