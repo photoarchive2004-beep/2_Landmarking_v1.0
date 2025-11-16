@@ -47,7 +47,7 @@ class HRNetConfig:
     learning_rate: float = 5e-4
     max_epochs: int = 100
     train_val_split: float = 0.9
-    flip_augmentation: bool = True
+    flip_augmentation: bool = False
     rotation_augmentation_deg: float = 15.0
     scale_augmentation: float = 0.3
     weight_decay: float = 1e-4
@@ -622,7 +622,7 @@ def train_model(
             log("MMPose HRNet недоступен, используется запасной вариант SimpleHRNet.")
     else:
         log("Создаём упрощённую модель SimpleHRNet (без MMPose).")
-        model = SimpleHRNet(num_keypoints=num_keypoints)
+        model = HRNetW32GM(num_keypoints=num_keypoints)
 
     optimizer = torch.optim.Adam(
         model.parameters(),
