@@ -21,3 +21,4 @@
 [2025-11-16 15:34:32] Fix NumPy/xtcocotools binary incompatibility in .venv_lm (force numpy<2, reinstall xtcocotools with --no-build-isolation, check MMPose HRNet import).
 [2025-11-16 15:46:36] Patch xtcocotools.mask to GM stub (disable _mask C-extension; keep only minimal API for MMPose HRNet import).
 [2025-11-16 15:58:34] Patch mmpose.models.heads.__init__ to disable hybrid_heads import (avoid mmdet dependency, keep HRNet-W32 only).
+[2025-11-16 16:07:35] Patch mmcv.utils.ext_loader.load_ext with GM stub (avoid mmcv._ext error; keep HRNet-W32 from MMPose for GM).
