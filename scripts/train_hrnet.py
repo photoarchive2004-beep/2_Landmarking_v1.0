@@ -543,7 +543,16 @@ def train_model(
         num_workers=0,
     )
 
-    model = SimpleHRNet(num_keypoints=num_keypoints)
+    model_type = (cfg.model_type or "").lower()
+    if model_type.startswith("hrnet_w32"):
+        log("Создаём модель HRNet-W32 (MMPose) для геометрической морфометрии.")
+        model = HRNetW32GM(num_keypoints=num_keypoints)
+        if getattr(model, "use_mmpose", False) is False:
+            log("MMPose HRNet недоступен, используется запасной вариант SimpleHRNet.")
+    else:
+        log("Создаём упрощённую модель SimpleHRNet (без MMPose).")
+        model = SimpleHRNet(num_keypoints=num_keypoints)
+
     assert torch is not None
     model = model.to(device)
     optimizer = torch.optim.Adam(
@@ -761,6 +770,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
 

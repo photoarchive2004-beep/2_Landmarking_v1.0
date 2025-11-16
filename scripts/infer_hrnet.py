@@ -20,6 +20,12 @@ except ImportError:  # pragma: no cover
     nn = None  # type: ignore[assignment]
 
 try:
+    # HRNet backbone from MMPose (используем, если установлен)
+    from mmpose.models.backbones import HRNet as MMPoseHRNet  # type: ignore
+except Exception:  # pragma: no cover
+    MMPoseHRNet = None  # type: ignore
+
+try:
     import yaml
 except ImportError:  # pragma: no cover
     yaml = None
@@ -163,11 +169,73 @@ if torch is not None:
             heatmaps = self.head(x)
             return heatmaps
 
+    class HRNetW32GM(nn.Module):
+        def __init__(self, num_keypoints: int) -> None:
+            super().__init__()
+            self.num_keypoints = int(num_keypoints)
+            self.use_mmpose = MMPoseHRNet is not None
+            if self.use_mmpose:
+                extra = {
+                    "stage1": dict(
+                        num_modules=1,
+                        num_branches=1,
+                        block="BOTTLENECK",
+                        num_blocks=(4,),
+                        num_channels=(64,),
+                    ),
+                    "stage2": dict(
+                        num_modules=1,
+                        num_branches=2,
+                        block="BASIC",
+                        num_blocks=(4, 4),
+                        num_channels=(32, 64),
+                    ),
+                    "stage3": dict(
+                        num_modules=4,
+                        num_branches=3,
+                        block="BASIC",
+                        num_blocks=(4, 4, 4),
+                        num_channels=(32, 64, 128),
+                    ),
+                    "stage4": dict(
+                        num_modules=3,
+                        num_branches=4,
+                        block="BASIC",
+                        num_blocks=(4, 4, 4, 4),
+                        num_channels=(32, 64, 128, 256),
+                    ),
+                }
+                self.backbone = MMPoseHRNet(extra=extra, in_channels=3)  # type: ignore[call-arg]
+                self.head = nn.Conv2d(32, self.num_keypoints, kernel_size=1)
+            else:
+                self.fallback = SimpleHRNet(num_keypoints)
+
+        def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+            if self.use_mmpose:
+                feats = self.backbone(x)
+                if isinstance(feats, (list, tuple)):
+                    feats0 = feats[0]
+                else:
+                    feats0 = feats
+                return self.head(feats0)
+            return self.fallback(x)
+
 else:
 
     class SimpleHRNet:  # type: ignore[misc]
         def __init__(self, num_keypoints: int) -> None:  # pragma: no cover
             raise RuntimeError("PyTorch is required for SimpleHRNet but is not installed.")
+
+    class HRNetW32GM:  # type: ignore[misc]
+        def __init__(self, num_keypoints: int) -> None:  # pragma: no cover
+            raise RuntimeError("PyTorch is required for HRNetW32GM but is not installed.")
+
+
+def build_model_for_infer(cfg: HRNetConfig, num_keypoints: int) -> "nn.Module":
+    model_type = (cfg.model_type or "").lower()
+    if model_type.startswith("hrnet_w32"):
+        return HRNetW32GM(num_keypoints=num_keypoints)
+    return SimpleHRNet(num_keypoints=num_keypoints)
 
 
 def _write_dummy_csv(csv_path: Path, num_keypoints: int) -> None:
@@ -218,7 +286,7 @@ def infer_for_locality(
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[INFO] Загружаем модель для инференса: {model_path} (device={device})")
 
-    model = SimpleHRNet(num_keypoints=num_keypoints)
+    model = build_model_for_infer(cfg, num_keypoints)
     state = torch.load(model_path, map_location=device)
     if isinstance(state, dict) and "state_dict" in state:
         state = state["state_dict"]
@@ -306,6 +374,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
 

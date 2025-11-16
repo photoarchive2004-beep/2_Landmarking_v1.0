@@ -1,0 +1,58 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116131027
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 18824
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_check_mmpose_20251116_131027.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Check MMPose stack in .venv_lm ==="
+=== Check MMPose stack in .venv_lm ===
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm\Scripts\python.exe not found. Cannot check MMPose."
+} else {
+    Write-Host "[INFO] Using Python:" $py
+    Write-Host "[INFO] Checking imports: mmengine, mmcv, mmpose ..."
+
+    $code = @'
+import importlib, sys
+
+def check(name):
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, "__version__", "?")
+        print(f"{name}: OK (version {ver})")
+    except Exception as e:
+        print(f"{name}: FAIL ({e!r})")
+
+print("Python:", sys.version)
+for pkg in ("mmengine", "mmcv", "mmpose"):
+    check(pkg)
+'@
+
+    $tmp = "scripts\\_check_mmpose_only.py"
+    $code | Set-Content $tmp -Encoding UTF8
+    & $py $tmp
+}
+[INFO] Using Python: .\.venv_lm\Scripts\python.exe
+[INFO] Checking imports: mmengine, mmcv, mmpose ...
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Check finished ==="
+=== Check finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116131029
+**********************

@@ -7,3 +7,5 @@
 [2025-11-16 09:59:53] Fix infer_hrnet CSV format: now one-line x1,y1,x2,y2,... to match annotator CSV (per examples in chat).
 [2025-11-16 10:13:57] Fix train_hrnet._load_keypoints: support one-line x1,y1,x2,y2,... and per-line x,y (aligned with annotator CSV).
 [2025-11-16 11:59:57] Fix trainer_menu: show_model_settings now waits for Enter (no instant window close on action 5).
+[2025-11-16 13:07:26] Install MMPose stack (openmim, mmengine, mmcv, mmpose) into .venv_lm; added quick import test script.
+[2025-11-16 13:10:29] Check MMPose stack in .venv_lm (imports for mmengine/mmcv/mmpose).
