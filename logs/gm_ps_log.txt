@@ -5,3 +5,4 @@
 [2025-11-16 09:45:52] Fix trainer_menu: autolabel now passes --base to infer_hrnet.py.
 [2025-11-16 09:51:06] Fix trainer_menu.main(): remove duplicate --base arg, restore clean parser (per TZ_1.0).
 [2025-11-16 09:59:53] Fix infer_hrnet CSV format: now one-line x1,y1,x2,y2,... to match annotator CSV (per examples in chat).
+[2025-11-16 10:13:57] Fix train_hrnet._load_keypoints: support one-line x1,y1,x2,y2,... and per-line x,y (aligned with annotator CSV).

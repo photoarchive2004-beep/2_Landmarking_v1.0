@@ -152,32 +152,69 @@ def _resize_and_pad(
 
 def _load_keypoints(csv_path: Path, num_keypoints: int) -> np.ndarray:
     """
-    Загружаем точки из CSV формата x,y (с возможной строкой-заголовком).
+    Загружаем точки из CSV.
+
+    Поддерживаем два формата:
+    1) ОДНА строка: x1,y1,x2,y2,... (как делает аннотатор).
+    2) МНОГО строк: по одной точке в строке (x,y), возможен заголовок x,y.
+
     Возвращаем массив (K, 2), недостающие точки = 0,0.
     """
     kps = np.zeros((num_keypoints, 2), dtype=np.float32)
     try:
         with csv_path.open("r", encoding="utf-8", newline="") as f:
             reader = csv.reader(f)
-            rows = list(reader)
-        # Возможен заголовок
-        start_idx = 0
-        if rows and rows[0] and rows[0][0].lower().startswith("x"):
-            start_idx = 1
-        idx = 0
-        for r in rows[start_idx:]:
-            if idx >= num_keypoints:
-                break
-            if len(r) < 2:
-                continue
-            try:
-                x = float(r[0])
-                y = float(r[1])
-            except ValueError:
-                continue
-            kps[idx, 0] = x
-            kps[idx, 1] = y
-            idx += 1
+            # убираем полностью пустые строки
+            rows = [row for row in reader if any((c or "").strip() for c in row)]
+
+        if not rows:
+            return kps
+
+        # убираем заголовок "x,y" если есть
+        if rows and rows[0] and (rows[0][0] or "").strip().lower().startswith("x"):
+            rows = rows[1:]
+
+        if not rows:
+            return kps
+
+        # Вариант 1: одна строка, много чисел -> считаем, что это x1,y1,x2,y2,...
+        if len(rows) == 1 and len(rows[0]) > 2:
+            flat_vals: list[float] = []
+            for cell in rows[0]:
+                cell = (cell or "").strip()
+                if not cell:
+                    continue
+                try:
+                    flat_vals.append(float(cell))
+                except ValueError:
+                    continue
+
+            idx = 0
+            it = iter(flat_vals)
+            for x, y in zip(it, it):
+                if idx >= num_keypoints:
+                    break
+                kps[idx, 0] = x
+                kps[idx, 1] = y
+                idx += 1
+
+        else:
+            # Вариант 2: построчный формат x,y
+            idx = 0
+            for row in rows:
+                if idx >= num_keypoints:
+                    break
+                if len(row) < 2:
+                    continue
+                try:
+                    x = float((row[0] or "").strip())
+                    y = float((row[1] or "").strip())
+                except ValueError:
+                    continue
+                kps[idx, 0] = x
+                kps[idx, 1] = y
+                idx += 1
+
     except Exception:
         # В случае ошибок возвращаем нули
         pass
@@ -724,5 +761,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
