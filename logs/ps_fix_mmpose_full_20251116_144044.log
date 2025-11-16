@@ -1,0 +1,148 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116144044
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 12712
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_fix_mmpose_full_20251116_144044.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== FULL FIX: reset NumPy + mmengine/mmcv/mmpose/xtcocotools in .venv_lm ==="
+=== FULL FIX: reset NumPy + mmengine/mmcv/mmpose/xtcocotools in .venv_lm ===
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm\\Scripts\\python.exe not found. Cannot proceed."
+} else {
+    Write-Host "[INFO] Using Python:" $py
+
+    Write-Host "`n[INFO] Versions BEFORE full fix:"
+    $showBefore = @'
+import importlib
+
+def show(name):
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, "__version__", "?")
+        print(f"{name}: {ver}")
+    except Exception as e:
+        print(f"{name}: FAIL ({e!r})")
+
+for pkg in ("numpy", "torch", "mmengine", "mmcv", "mmpose", "xtcocotools"):
+    show(pkg)
+'@
+    $showBeforePath = "scripts\\_show_stack_before_full_fix.py"
+    $showBefore | Set-Content $showBeforePath -Encoding UTF8
+    & $py $showBeforePath
+
+    # --- 1. Полный снос конфликтующих пакетов ---
+    Write-Host "`n[INFO] Uninstall mmpose/mmcv/mmengine/xtcocotools/numpy ..."
+    & $py -m pip uninstall -y mmpose mmcv mmengine xtcocotools numpy
+
+    # --- 2. Ставим стабильную NumPy 1.x ---
+    Write-Host "`n[INFO] Install NumPy 1.x (совместимая) ..."
+    & $py -m pip install "numpy<2.0.0" -U
+
+    # --- 3. OpenMIM + mmengine/mmcv/mmpose ---
+    Write-Host "`n[INFO] Install/upgrade openmim ..."
+    & $py -m pip install -U openmim
+
+    Write-Host "`n[INFO] Install mmengine (0.10.x) ..."
+    & $py -m mim install "mmengine>=0.10.0,<0.11.0"
+
+    Write-Host "`n[INFO] Install mmcv 2.x ..."
+    & $py -m mim install "mmcv>=2.0.0,<2.2.0"
+
+    Write-Host "`n[INFO] Install mmpose 1.3.x ..."
+    & $py -m mim install "mmpose>=1.3.0,<1.4.0"
+
+    # ВНИМАНИЕ: xtcocotools обычно приезжает как зависимость mmpose.
+    # Если по какой-то причине не поставился — ставим отдельно.
+    Write-Host "`n[INFO] Ensure xtcocotools is installed ..."
+    & $py -m pip install xtcocotools
+
+    # --- 4. Проверка: ещё раз смотрим версии + пробуем импортировать HRNet ---
+    Write-Host "`n[INFO] Versions AFTER full fix:"
+    $showAfter = @'
+import importlib
+
+def show(name):
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, "__version__", "?")
+        print(f"{name}: {ver}")
+    except Exception as e:
+        print(f"{name}: FAIL ({e!r})")
+
+for pkg in ("numpy", "torch", "mmengine", "mmcv", "mmpose", "xtcocotools"):
+    show(pkg)
+'@
+    $showAfterPath = "scripts\\_show_stack_after_full_fix.py"
+    $showAfter | Set-Content $showAfterPath -Encoding UTF8
+    & $py $showAfterPath
+
+    Write-Host "`n[INFO] Check MMPose HRNet import (final) ..."
+    $checkScript = @'
+import numpy, traceback
+
+print("=== MMPose HRNet import check FINAL ===")
+print("numpy version:", numpy.__version__)
+try:
+    from mmpose.models.backbones import HRNet as MMPoseHRNet
+    print("MMPoseHRNet imported OK:", MMPoseHRNet)
+except Exception as e:
+    print("IMPORT_ERROR:", repr(e))
+    traceback.print_exc()
+'@
+    $checkPath = "scripts\\_check_mmpose_hrnet_import_final.py"
+    $checkScript | Set-Content $checkPath -Encoding UTF8
+    & $py $checkPath
+}
+[INFO] Using Python: .\.venv_lm\Scripts\python.exe
+
+[INFO] Versions BEFORE full fix:
+
+
+[INFO] Uninstall mmpose/mmcv/mmengine/xtcocotools/numpy ...
+
+
+[INFO] Install NumPy 1.x (совместимая) ...
+
+
+[INFO] Install/upgrade openmim ...
+
+
+[INFO] Install mmengine (0.10.x) ...
+
+
+[INFO] Install mmcv 2.x ...
+
+
+[INFO] Install mmpose 1.3.x ...
+
+
+[INFO] Ensure xtcocotools is installed ...
+
+
+[INFO] Versions AFTER full fix:
+
+
+[INFO] Check MMPose HRNet import (final) ...
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "`n=== FULL FIX step finished ==="
+
+=== FULL FIX step finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116144126
+**********************

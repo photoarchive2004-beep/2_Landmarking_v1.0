@@ -15,3 +15,4 @@
 [2025-11-16 14:10:57] Add debug print for MMPose HRNet import exceptions in train_hrnet.py and infer_hrnet.py.
 [2025-11-16 14:22:50] Fix NumPy/MMPose/MMCV incompatibility in .venv_lm (force numpy<2, reinstall mmcv+mmpose with mim, check HRNet import).
 [2025-11-16 14:32:04] Rebuild xtcocotools against current NumPy to fix MMPose HRNet import.
+[2025-11-16 14:41:26] Full reset of NumPy + mmengine/mmcv/mmpose/xtcocotools in .venv_lm and final HRNet import check.
