@@ -4,3 +4,4 @@
 [2025-11-16 01:05:13] Update HRNetConfig in train/infer: add heatmap_sigma_px and use it in training (per TZ_V2).
 [2025-11-16 09:45:52] Fix trainer_menu: autolabel now passes --base to infer_hrnet.py.
 [2025-11-16 09:51:06] Fix trainer_menu.main(): remove duplicate --base arg, restore clean parser (per TZ_1.0).
+[2025-11-16 09:59:53] Fix infer_hrnet CSV format: now one-line x1,y1,x2,y2,... to match annotator CSV (per examples in chat).

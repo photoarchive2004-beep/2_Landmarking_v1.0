@@ -172,14 +172,15 @@ else:
 
 def _write_dummy_csv(csv_path: Path, num_keypoints: int) -> None:
     """
-    Записываем CSV с нужным числом строк x,y = 0,0.
+    Записываем CSV в формате одной строки: x1,y1,x2,y2,... .
     Используется в заглушках, если нет модели или torch.
     """
     with csv_path.open("w", encoding="utf-8", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["x", "y"])
+        row = []
         for _ in range(num_keypoints):
-            writer.writerow([0, 0])
+            row.extend([0.0, 0.0])
+        writer.writerow(row)
 
 
 def infer_for_locality(
@@ -245,15 +246,16 @@ def infer_for_locality(
         else:
             kps_orig = kps_resized
 
-        # Запись CSV
+        # Запись CSV в формате одной строки: x1,y1,x2,y2,...
         csv_path = img_path.with_suffix(".csv")
         with csv_path.open("w", encoding="utf-8", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow(["x", "y"])
+            row = []
             for i in range(num_keypoints):
                 x = float(kps_orig[i, 0]) if i < len(kps_orig) else 0.0
                 y = float(kps_orig[i, 1]) if i < len(kps_orig) else 0.0
-                writer.writerow([x, y])
+                row.extend([x, y])
+            writer.writerow(row)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -304,5 +306,6 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
