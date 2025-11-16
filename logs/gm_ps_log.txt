@@ -17,3 +17,4 @@
 [2025-11-16 14:32:04] Rebuild xtcocotools against current NumPy to fix MMPose HRNet import.
 [2025-11-16 14:41:26] Full reset of NumPy + mmengine/mmcv/mmpose/xtcocotools in .venv_lm and final HRNet import check.
 [2025-11-16 15:13:14] Patch mmpose.models.__init__ to disable distillers import (avoid xtcocotools / numpy dtype errors, use HRNet-W32 from MMPose only).
+[2025-11-16 15:27:02] Patch train_hrnet.py and infer_hrnet.py: load HRNet from mmpose/models/backbones/hrnet.py directly (bypass xtcocotools stack).
