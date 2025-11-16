@@ -1,0 +1,86 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116161258
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 9636
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_fix_mmcv_ext_line_20251116_161258.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Fix mmcv.utils.ext_loader: remove stray '\\n' in return line ==="
+=== Fix mmcv.utils.ext_loader: remove stray '\\n' in return line ===
+PS D:\GM\tools\2_Landmarking_v1.0> # Путь к сломанному ext_loader.py
+PS D:\GM\tools\2_Landmarking_v1.0> $extPath = ".\.venv_lm\Lib\site-packages\mmcv\utils\ext_loader.py"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $extPath)) {
+    Write-Host "[ERR] ext_loader.py not found at $extPath"
+} else {
+    Write-Host "[INFO] ext_loader.py:" (Resolve-Path $extPath)
+
+    # Читаем целиком
+    $text = Get-Content $extPath -Raw
+
+    # Паттерн с лишними символами \n в конце строки
+    $bad  = 'return ext_loader is not None\n'
+    $good = 'return ext_loader is not None'
+
+    if ($text.Contains($bad)) {
+        Write-Host "[INFO] Found broken pattern, fixing..."
+        $text = $text.Replace($bad, $good)
+        $text | Set-Content $extPath -Encoding UTF8
+        Write-Host "[INFO] ext_loader.py fixed."
+    } else {
+        Write-Host "[WARN] Broken pattern not found, ext_loader.py left unchanged."
+    }
+
+    # --- 2. Быстрая проверка: импорт HRNet из MMPose ---
+    $py = ".\.venv_lm\Scripts\python.exe"
+    if (!(Test-Path $py)) {
+        if (Get-Command py -ErrorAction SilentlyContinue) {
+            $py = "py -3"
+        } else {
+            $py = "python"
+        }
+    }
+
+    Write-Host "`n[INFO] Quick check: import HRNet from MMPose ..."
+    $checkScript = @'
+print("=== HRNet quick check ===")
+import numpy
+print("numpy:", numpy.__version__)
+try:
+    from mmpose.models.backbones import HRNet as MMPoseHRNet
+    print("OK: MMPoseHRNet imported:", MMPoseHRNet)
+except Exception as e:
+    import traceback
+    print("IMPORT_ERROR:", repr(e))
+    traceback.print_exc()
+'@
+    $checkPath = "scripts\\_check_hrnet_quick.py"
+    $checkScript | Set-Content $checkPath -Encoding UTF8
+    & $py $checkPath
+    Write-Host "[INFO] HRNet quick check finished."
+}
+[INFO] ext_loader.py: D:\GM\tools\2_Landmarking_v1.0\.venv_lm\Lib\site-packages\mmcv\utils\ext_loader.py
+[INFO] Found broken pattern, fixing...
+[INFO] ext_loader.py fixed.
+
+[INFO] Quick check: import HRNet from MMPose ...
+
+[INFO] HRNet quick check finished.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Fix step finished ==="
+=== Fix step finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116161300
+**********************
