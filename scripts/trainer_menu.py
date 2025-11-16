@@ -322,7 +322,7 @@ def run_autolabel(landmark_root: Path, base_localities: Optional[Path]) -> None:
         str(infer_script),
         "--landmark-root",
         str(landmark_root),
-        "--base-localities",
+        "--base",
         str(base_localities),
         "--locality",
         loc.locality,
@@ -696,7 +696,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", dest="root", default=None)
     parser.add_argument("--base", dest="base", default=None)
-    parser.add_argument("--base-localities", dest="base_localities", default=None)
+    parser.add_argument("--base", dest="base_localities", default=None)
     args = parser.parse_args()
 
     landmark_root = get_landmark_root(args.root)
@@ -743,4 +743,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 
