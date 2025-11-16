@@ -1,0 +1,46 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116010557
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 24148
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_train_overnight_20251116_010557.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== OVERNIGHT TRAIN RUN: 2_TRAIN-INFER_HRNet.bat ==="
+=== OVERNIGHT TRAIN RUN: 2_TRAIN-INFER_HRNet.bat ===
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Сейчас откроется окно тренера."
+Сейчас откроется окно тренера.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "Сделай там, как обычно:"
+Сделай там, как обычно:
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "  1) Выбери пункт '1) Train / Finetune model on MANUAL localities'."
+  1) Выбери пункт '1) Train / Finetune model on MANUAL localities'.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "  2) Если спросит базу/локальности — укажи нужную базу."
+  2) Если спросит базу/локальности — укажи нужную базу.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "  3) Дальше модель будет обучаться. Можно оставить комп включённым на ночь."
+  3) Дальше модель будет обучаться. Можно оставить комп включённым на ночь.
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> & ".\2_TRAIN-INFER_HRNet.bat"
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host ""
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== OVERNIGHT TRAIN RUN FINISHED (bat-файл закрылся) ==="
+=== OVERNIGHT TRAIN RUN FINISHED (bat-файл закрылся) ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116093116
+**********************
