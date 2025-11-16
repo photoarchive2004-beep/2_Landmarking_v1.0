@@ -9,3 +9,6 @@
 [2025-11-16 11:59:57] Fix trainer_menu: show_model_settings now waits for Enter (no instant window close on action 5).
 [2025-11-16 13:07:26] Install MMPose stack (openmim, mmengine, mmcv, mmpose) into .venv_lm; added quick import test script.
 [2025-11-16 13:10:29] Check MMPose stack in .venv_lm (imports for mmengine/mmcv/mmpose).
+[2025-11-16 13:29:45] Add MMPose HRNet-W32 (HRNetW32GM) to train_hrnet.py and import MMPoseHRNet.
+[2025-11-16 13:49:37] Append HRNetW32GM class (MMPose HRNet-W32 backbone) to train_hrnet.py.
+[2025-11-16 13:59:50] Overwrite train_hrnet.py with clean HRNet-W32 (MMPose) version, consistent with TZ and infer_hrnet.py.

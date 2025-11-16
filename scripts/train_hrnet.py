@@ -25,6 +25,12 @@ except ImportError:  # pragma: no cover
     DataLoader = object  # type: ignore[assignment]
 
 try:
+    # HRNet backbone from MMPose (используем, если установлен)
+    from mmpose.models.backbones import HRNet as MMPoseHRNet  # type: ignore
+except Exception:  # pragma: no cover
+    MMPoseHRNet = None  # type: ignore
+
+try:
     import yaml
 except ImportError:  # pragma: no cover
     yaml = None
@@ -332,7 +338,7 @@ def compute_pck_at_r(
     return float(correct.sum().item()) / float(mask.sum().item())
 
 
-# Модель: простая сверточная сеть HRNet-подобной структуры
+# Модели: простая сеть SimpleHRNet и HRNet-W32 (через MMPose)
 if torch is not None:
 
     class SimpleHRNet(nn.Module):
@@ -374,6 +380,62 @@ if torch is not None:
             heatmaps = self.head(x)
             return heatmaps
 
+    class HRNetW32GM(nn.Module):
+        """
+        HRNet-W32 из MMPose + простой head для теплокарт.
+        Если MMPose недоступен, используется SimpleHRNet.
+        """
+
+        def __init__(self, num_keypoints: int) -> None:
+            super().__init__()
+            self.num_keypoints = int(num_keypoints)
+            self.use_mmpose = MMPoseHRNet is not None
+            if self.use_mmpose:
+                extra = {
+                    "stage1": dict(
+                        num_modules=1,
+                        num_branches=1,
+                        block="BOTTLENECK",
+                        num_blocks=(4,),
+                        num_channels=(64,),
+                    ),
+                    "stage2": dict(
+                        num_modules=1,
+                        num_branches=2,
+                        block="BASIC",
+                        num_blocks=(4, 4),
+                        num_channels=(32, 64),
+                    ),
+                    "stage3": dict(
+                        num_modules=4,
+                        num_branches=3,
+                        block="BASIC",
+                        num_blocks=(4, 4, 4),
+                        num_channels=(32, 64, 128),
+                    ),
+                    "stage4": dict(
+                        num_modules=3,
+                        num_branches=4,
+                        block="BASIC",
+                        num_blocks=(4, 4, 4, 4),
+                        num_channels=(32, 64, 128, 256),
+                    ),
+                }
+                self.backbone = MMPoseHRNet(extra=extra, in_channels=3)  # type: ignore[call-arg]
+                self.head = nn.Conv2d(32, self.num_keypoints, kernel_size=1)
+            else:
+                self.fallback = SimpleHRNet(num_keypoints)
+
+        def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+            if self.use_mmpose:
+                feats = self.backbone(x)
+                if isinstance(feats, (list, tuple)):
+                    feats0 = feats[0]
+                else:
+                    feats0 = feats
+                return self.head(feats0)
+            return self.fallback(x)
+
 else:
 
     class SimpleHRNet:  # type: ignore[misc]
@@ -383,6 +445,14 @@ else:
 
         def __init__(self, num_keypoints: int) -> None:  # pragma: no cover
             raise RuntimeError("PyTorch is required for SimpleHRNet but is not installed.")
+
+    class HRNetW32GM:  # type: ignore[misc]
+        """
+        Заглушка, если torch не установлен.
+        """
+
+        def __init__(self, num_keypoints: int) -> None:  # pragma: no cover
+            raise RuntimeError("PyTorch is required for HRNetW32GM but is not installed.")
 
 
 def write_datasets_txt(
@@ -553,14 +623,14 @@ def train_model(
         log("Создаём упрощённую модель SimpleHRNet (без MMPose).")
         model = SimpleHRNet(num_keypoints=num_keypoints)
 
-    assert torch is not None
-    model = model.to(device)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=float(cfg.learning_rate),
         weight_decay=float(cfg.weight_decay),
     )
     criterion = torch.nn.MSELoss()
+
+    model = model.to(device)
 
     # Радиус для PCK@R: фиксированный в пикселях на теплокарте
     # Здесь берём 5% от меньшей стороны входа.
@@ -583,7 +653,13 @@ def train_model(
 
             optimizer.zero_grad()
             _, _, H, W = imgs.shape
-            gt_heatmaps = keypoints_to_heatmaps(kps, H, W, sigma=float(getattr(cfg, "heatmap_sigma_px", 2.0)), device=device)
+            gt_heatmaps = keypoints_to_heatmaps(
+                kps,
+                H,
+                W,
+                sigma=float(getattr(cfg, "heatmap_sigma_px", 2.0)),
+                device=device,
+            )
             pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
             loss.backward()
@@ -770,7 +846,3 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-
-
