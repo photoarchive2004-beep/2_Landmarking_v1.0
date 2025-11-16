@@ -1,0 +1,107 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116142203
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 23416
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_fix_mmpose_numpy_20251116_142202.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Fix NumPy <-> MMPose/MMCV binary incompatibility ==="
+=== Fix NumPy <-> MMPose/MMCV binary incompatibility ===
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm\\Scripts\\python.exe not found. Cannot proceed."
+} else {
+    Write-Host "[INFO] Using Python:" $py
+
+    # --- 1. Печатаем текущие версии в лог (для истории) ---
+    Write-Host "[INFO] Current versions (before fix):"
+    $versScript = @'
+import importlib
+
+def show(name):
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, "__version__", "?")
+        print(f"{name}: {ver}")
+    except Exception as e:
+        print(f"{name}: FAIL ({e!r})")
+
+for pkg in ("numpy", "torch", "mmengine", "mmcv", "mmpose"):
+    show(pkg)
+'@
+    $versPath = "scripts\\_show_mmpose_stack_versions.py"
+    $versScript | Set-Content $versPath -Encoding UTF8
+    & $py $versPath
+
+    # --- 2. Принудительно ставим NumPy 1.x (<2.0.0), чтобы не было бинарного конфликта ---
+    Write-Host "[INFO] Installing compatible NumPy (<2.0.0) ..."
+    & $py -m pip install "numpy<2.0.0" -U
+
+    # --- 3. Переустанавливаем mmcv и mmpose под эту NumPy ---
+    Write-Host "[INFO] Uninstall mmcv/mmpose to avoid old binary wheels ..."
+    & $py -m pip uninstall -y mmcv mmpose
+
+    Write-Host "[INFO] Ensure openmim is installed/updated ..."
+    & $py -m pip install -U openmim
+
+    Write-Host "[INFO] Install mmengine (core OpenMMLab engine) ..."
+    & $py -m mim install "mmengine>=0.10.0,<0.11.0"
+
+    Write-Host "[INFO] Install mmcv 2.x via mim (CUDA-совместимая сборка) ..."
+    & $py -m mim install "mmcv>=2.0.0,<2.2.0"
+
+    Write-Host "[INFO] Install mmpose 1.3.x via mim ..."
+    & $py -m mim install "mmpose>=1.3.0,<1.4.0"
+
+    # --- 4. Проверка: импорт HRNet из MMPose (ключевой момент) ---
+    Write-Host "[INFO] Check HRNet import from MMPose ..."
+    $checkScript = @'
+print("=== MMPose HRNet import check ===")
+import numpy
+print("numpy version:", numpy.__version__)
+try:
+    from mmpose.models.backbones import HRNet as MMPoseHRNet
+    print("MMPoseHRNet imported OK:", MMPoseHRNet)
+except Exception as e:
+    print("IMPORT_ERROR:", repr(e))
+'@
+    $checkPath = "scripts\\_check_mmpose_hrnet_import.py"
+    $checkScript | Set-Content $checkPath -Encoding UTF8
+    & $py $checkPath
+}
+[INFO] Using Python: .\.venv_lm\Scripts\python.exe
+[INFO] Current versions (before fix):
+
+[INFO] Installing compatible NumPy (<2.0.0) ...
+
+[INFO] Uninstall mmcv/mmpose to avoid old binary wheels ...
+
+[INFO] Ensure openmim is installed/updated ...
+
+[INFO] Install mmengine (core OpenMMLab engine) ...
+
+[INFO] Install mmcv 2.x via mim (CUDA-совместимая сборка) ...
+
+[INFO] Install mmpose 1.3.x via mim ...
+
+[INFO] Check HRNet import from MMPose ...
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Fix step finished ==="
+=== Fix step finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116142250
+**********************

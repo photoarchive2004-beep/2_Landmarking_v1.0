@@ -1,0 +1,93 @@
+﻿**********************
+Начало записи сценария Windows PowerShell
+Время начала: 20251116143150
+Имя пользователя: BERS\artae
+Запуск от имени пользователя: BERS\artae
+Имя конфигурации: 
+Компьютер: BERS (Microsoft Windows NT 10.0.26200.0)
+Ведущее приложение: C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe
+ИД процесса: 26688
+PSVersion: 5.1.26100.7019
+PSEdition: Desktop
+PSCompatibleVersions: 1.0, 2.0, 3.0, 4.0, 5.0, 5.1.26100.7019
+BuildVersion: 10.0.26100.7019
+CLRVersion: 4.0.30319.42000
+WSManStackVersion: 3.0
+PSRemotingProtocolVersion: 2.3
+SerializationVersion: 1.1.0.1
+**********************
+Транскрибирование запущено, выходной файл logs\ps_fix_xtcocotools_20251116_143150.log
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== Fix xtcocotools <-> NumPy binary incompatibility ==="
+=== Fix xtcocotools <-> NumPy binary incompatibility ===
+PS D:\GM\tools\2_Landmarking_v1.0> $py = ".\.venv_lm\Scripts\python.exe"
+PS D:\GM\tools\2_Landmarking_v1.0> if (!(Test-Path $py)) {
+    Write-Host "[ERR] .venv_lm\\Scripts\\python.exe not found. Cannot proceed."
+} else {
+    Write-Host "[INFO] Using Python:" $py
+
+    # --- 1. Обновляем скрипт проверки HRNet, чтобы печатал полный трейс ---
+    Write-Host "[INFO] Update HRNet import check script ..."
+    $checkScript = @'
+import numpy, traceback
+
+print("=== MMPose HRNet import check v2 ===")
+print("numpy version:", numpy.__version__)
+try:
+    from mmpose.models.backbones import HRNet as MMPoseHRNet
+    print("MMPoseHRNet imported OK:", MMPoseHRNet)
+except Exception as e:
+    print("IMPORT_ERROR:", repr(e))
+    traceback.print_exc()
+'@
+    $checkPath = "scripts\\_check_mmpose_hrnet_import.py"
+    $checkScript | Set-Content $checkPath -Encoding UTF8
+
+    Write-Host "[INFO] Current versions BEFORE xtcocotools fix:"
+    $showScript = @'
+import importlib
+
+def show(name):
+    try:
+        m = importlib.import_module(name)
+        ver = getattr(m, "__version__", "?")
+        print(f"{name}: {ver}")
+    except Exception as e:
+        print(f"{name}: FAIL ({e!r})")
+
+for pkg in ("numpy", "mmcv", "mmpose", "xtcocotools"):
+    show(pkg)
+'@
+    $showPath = "scripts\\_show_xtcocotools_stack.py"
+    $showScript | Set-Content $showPath -Encoding UTF8
+    & $py $showPath
+
+    # --- 2. Полностью снести xtcocotools ---
+    Write-Host "[INFO] Uninstall xtcocotools ..."
+    & $py -m pip uninstall -y xtcocotools
+
+    # --- 3. Поставить xtcocotools из исходников под текущую NumPy ---
+    # Это нужно, чтобы он пересобрался под numpy 2.2.6
+    Write-Host "[INFO] Install xtcocotools from source (no binary wheels) ..."
+    & $py -m pip install --no-binary=:all: xtcocotools
+
+    # --- 4. Проверка: снова пробуем импортировать HRNet ---
+    Write-Host "[INFO] Re-check HRNet import after xtcocotools rebuild ..."
+    & $py $checkPath
+}
+[INFO] Using Python: .\.venv_lm\Scripts\python.exe
+[INFO] Update HRNet import check script ...
+[INFO] Current versions BEFORE xtcocotools fix:
+
+[INFO] Uninstall xtcocotools ...
+
+[INFO] Install xtcocotools from source (no binary wheels) ...
+
+[INFO] Re-check HRNet import after xtcocotools rebuild ...
+
+PS D:\GM\tools\2_Landmarking_v1.0> Write-Host "=== xtcocotools fix step finished ==="
+=== xtcocotools fix step finished ===
+PS D:\GM\tools\2_Landmarking_v1.0> Stop-Transcript
+**********************
+Конец записи протокола Windows PowerShell
+Время окончания: 20251116143204
+**********************
