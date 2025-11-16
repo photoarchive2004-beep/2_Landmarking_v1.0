@@ -653,15 +653,29 @@ def train_model(
             kps = kps.to(device)
 
             optimizer.zero_grad()
-            _, _, H, W = imgs.shape
+            # Сначала прогоняем через модель и узнаём размер теплокарт
+            pred_heatmaps = model(imgs)
+            _, _, H_hm, W_hm = pred_heatmaps.shape
+            _, _, H_in, W_in = imgs.shape
+
+            # Масштабируем ключевые точки под разрешение теплокарт,
+            # чтобы gt и pred были одного размера.
+            if H_in != H_hm or W_in != W_hm:
+                scale_x = float(W_hm) / float(W_in)
+                scale_y = float(H_hm) / float(H_in)
+                kps_scaled = kps.clone()
+                kps_scaled[..., 0] = kps_scaled[..., 0] * scale_x
+                kps_scaled[..., 1] = kps_scaled[..., 1] * scale_y
+            else:
+                kps_scaled = kps
+
             gt_heatmaps = keypoints_to_heatmaps(
-                kps,
-                H,
-                W,
+                kps_scaled,
+                H_hm,
+                W_hm,
                 sigma=float(getattr(cfg, "heatmap_sigma_px", 2.0)),
                 device=device,
             )
-            pred_heatmaps = model(imgs)
             loss = criterion(pred_heatmaps, gt_heatmaps)
             loss.backward()
             optimizer.step()
@@ -682,6 +696,14 @@ def train_model(
                 kps = kps.to(device)
                 pred_heatmaps = model(imgs)
                 pred_kps = heatmaps_to_keypoints(pred_heatmaps)
+                # Переводим предсказанные координаты в ту же систему, что и gt
+                _, _, H_in, W_in = imgs.shape
+                _, _, H_hm, W_hm = pred_heatmaps.shape
+                if H_in != H_hm or W_in != W_hm:
+                    scale_x = float(W_in) / float(W_hm)
+                    scale_y = float(H_in) / float(H_hm)
+                    pred_kps[..., 0] = pred_kps[..., 0] * scale_x
+                    pred_kps[..., 1] = pred_kps[..., 1] * scale_y
                 all_pred.append(pred_kps.cpu())
                 all_gt.append(kps.cpu())
 

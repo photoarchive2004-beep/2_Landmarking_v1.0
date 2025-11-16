@@ -25,3 +25,4 @@
 [2025-11-16 16:13:00] Fix mmcv.utils.ext_loader return line (remove stray '\\n') and run HRNet quick import check.
 [2025-11-16 16:34:04] Rewrite mmcv.utils.ext_loader with clean GM stub and run HRNet quick import check.
 [2025-11-16 16:42:04] Fix train_hrnet: build gt heatmaps at HRNet output resolution (avoid 256 vs 1024 mismatch).
+[2025-11-16 16:49:40] Patch train_hrnet.py: make gt_heatmaps match HRNet output resolution + correct PCK scaling.
