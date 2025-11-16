@@ -22,7 +22,8 @@ except ImportError:  # pragma: no cover
 try:
     # HRNet backbone from MMPose (используем, если установлен)
     from mmpose.models.backbones import HRNet as MMPoseHRNet  # type: ignore
-except Exception:  # pragma: no cover
+except Exception as e:  # pragma: no cover
+    print("[WARN] Exception during import or setup (possibly MMPose HRNet):", repr(e))
     MMPoseHRNet = None  # type: ignore
 
 try:
@@ -374,6 +375,7 @@ def main(argv: Optional[List[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
 
 
 
